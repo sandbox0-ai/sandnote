@@ -33,7 +33,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(
 		newInitCommand(opts),
 		newEntryCommand(),
-		newThreadCommand(),
+		newThreadCommand(opts),
 		newWorkspaceCommand(),
 		newTopicCommand(),
 		newREPLCommand(),
@@ -78,26 +78,6 @@ func newEntryCommand() *cobra.Command {
 		"link",
 		"attach",
 		"archive",
-	)
-	return cmd
-}
-
-func newThreadCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "thread",
-		Short: "Work with continuable lines of thought",
-	}
-	addNotImplementedSubcommands(cmd,
-		"create",
-		"show",
-		"list",
-		"resume",
-		"inspect",
-		"checkpoint",
-		"transition",
-		"entries",
-		"attach",
-		"detach",
 	)
 	return cmd
 }
