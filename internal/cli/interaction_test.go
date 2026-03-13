@@ -42,6 +42,55 @@ func TestWorkspaceFocusAttachesThread(t *testing.T) {
 	}
 }
 
+func TestWorkspaceUsePersistsActiveSelection(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "workspace", "focus", "ws_1", "th_1")
+	executeCLI(t, root, "workspace", "use", "ws_1")
+
+	store := fsstore.New(root)
+	session, err := store.LoadREPLSession()
+	if err != nil {
+		t.Fatalf("LoadREPLSession() error = %v", err)
+	}
+	if session.CurrentWorkspace != "ws_1" || session.FocusThread != "th_1" {
+		t.Fatalf("unexpected session after workspace use: %+v", session)
+	}
+}
+
+func TestThreadFocusPersistsActiveSelection(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "thread", "focus", "th_1")
+
+	store := fsstore.New(root)
+	session, err := store.LoadREPLSession()
+	if err != nil {
+		t.Fatalf("LoadREPLSession() error = %v", err)
+	}
+	if session.CurrentWorkspace != "ws_1" || session.FocusThread != "th_1" {
+		t.Fatalf("unexpected session after thread focus: %+v", session)
+	}
+}
+
+func TestTopLevelResumePersistsSelectedThread(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "resume")
+
+	store := fsstore.New(root)
+	session, err := store.LoadREPLSession()
+	if err != nil {
+		t.Fatalf("LoadREPLSession() error = %v", err)
+	}
+	if session.CurrentWorkspace != "ws_1" || session.FocusThread != "th_1" {
+		t.Fatalf("unexpected session after resume: %+v", session)
+	}
+}
+
 func TestTopicOrientUpdatesOrientation(t *testing.T) {
 	t.Parallel()
 
