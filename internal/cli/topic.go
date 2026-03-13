@@ -21,8 +21,9 @@ func newTopicCommand(opts *rootOptions) *cobra.Command {
 		newTopicShowCommand(opts),
 		newTopicListCommand(opts),
 		newTopicOrientCommand(opts),
+		newTopicPromoteCommand(opts),
 	)
-	addNotImplementedSubcommands(cmd, "promote", "entries", "threads")
+	addNotImplementedSubcommands(cmd, "entries", "threads")
 	return cmd
 }
 
@@ -153,6 +154,84 @@ func newTopicOrientCommand(opts *rootOptions) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&orientation, "orientation", "", "topic orientation")
+	cmd.Flags().BoolVar(&topicOpts.json, "json", false, "output JSON")
+	return cmd
+}
+
+func newTopicPromoteCommand(opts *rootOptions) *cobra.Command {
+	topicOpts := &topicOptions{}
+	var threadID string
+	var entryIDs []string
+	var orientation string
+	var includeSupporting bool
+
+	cmd := &cobra.Command{
+		Use:   "promote <id>",
+		Short: "Promote durable understanding into a topic surface",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if threadID == "" && len(entryIDs) == 0 {
+				return errors.New("promotion requires --thread or at least one --entry")
+			}
+
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			topic, err := store.LoadTopic(args[0])
+			if err != nil {
+				return err
+			}
+
+			if threadID != "" {
+				thread, err := store.LoadThread(threadID)
+				if err != nil {
+					return err
+				}
+				if !contains(topic.ThreadIDs, thread.ID) {
+					topic.ThreadIDs = append(topic.ThreadIDs, thread.ID)
+				}
+				if thread.ReentryAnchor != "" && !contains(topic.EntryIDs, thread.ReentryAnchor) {
+					if _, err := store.LoadEntry(thread.ReentryAnchor); err == nil {
+						topic.EntryIDs = append(topic.EntryIDs, thread.ReentryAnchor)
+					}
+				}
+				if includeSupporting {
+					for _, entryID := range thread.SupportingIDs {
+						if _, err := store.LoadEntry(entryID); err != nil {
+							return err
+						}
+						if !contains(topic.EntryIDs, entryID) {
+							topic.EntryIDs = append(topic.EntryIDs, entryID)
+						}
+					}
+				}
+			}
+
+			for _, entryID := range entryIDs {
+				if _, err := store.LoadEntry(entryID); err != nil {
+					return err
+				}
+				if !contains(topic.EntryIDs, entryID) {
+					topic.EntryIDs = append(topic.EntryIDs, entryID)
+				}
+			}
+
+			if orientation != "" {
+				topic.Orientation = orientation
+			}
+			topic.UpdatedAt = nowUTC()
+
+			if err := store.SaveTopic(topic); err != nil {
+				return err
+			}
+			return output(cmd, topicOpts.json, topic, formatTopic(topic))
+		},
+	}
+	cmd.Flags().StringVar(&threadID, "thread", "", "thread to promote from")
+	cmd.Flags().StringSliceVar(&entryIDs, "entry", nil, "entries to attach to the topic")
+	cmd.Flags().StringVar(&orientation, "orientation", "", "update topic orientation during promotion")
+	cmd.Flags().BoolVar(&includeSupporting, "include-supporting", false, "include the thread's supporting entries")
 	cmd.Flags().BoolVar(&topicOpts.json, "json", false, "output JSON")
 	return cmd
 }
