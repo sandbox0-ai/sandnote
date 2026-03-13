@@ -70,6 +70,7 @@ func newThreadCommand(opts *rootOptions) *cobra.Command {
 
 	cmd.AddCommand(
 		newThreadCreateCommand(opts),
+		newThreadFocusCommand(opts),
 		newThreadShowCommand(opts),
 		newThreadListCommand(opts),
 		newThreadFrontierCommand(opts),
@@ -79,6 +80,38 @@ func newThreadCommand(opts *rootOptions) *cobra.Command {
 		newThreadTransitionCommand(opts),
 	)
 	addNotImplementedSubcommands(cmd, "entries", "attach", "detach")
+	return cmd
+}
+
+func newThreadFocusCommand(opts *rootOptions) *cobra.Command {
+	focusOpts := &threadOptions{}
+	cmd := &cobra.Command{
+		Use:   "focus <id>",
+		Short: "Set the current focus thread for canonical CLI and REPL flows",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			thread, err := store.LoadThread(args[0])
+			if err != nil {
+				return err
+			}
+			if err := updateActiveWorkSelection(store, thread.WorkspaceID, thread.ID); err != nil {
+				return err
+			}
+			return output(cmd, focusOpts.json, threadShowView{
+				ID:            thread.ID,
+				Question:      thread.Question,
+				Vitality:      thread.Vitality,
+				CurrentBelief: thread.CurrentBelief,
+				OpenEdge:      thread.OpenEdge,
+				WorkspaceID:   thread.WorkspaceID,
+			}, formatThreadShow(thread))
+		},
+	}
+	cmd.Flags().BoolVar(&focusOpts.json, "json", false, "output JSON")
 	return cmd
 }
 

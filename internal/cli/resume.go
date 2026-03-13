@@ -42,6 +42,9 @@ func newResumeCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := updateActiveWorkSelection(store, thread.WorkspaceID, thread.ID); err != nil {
+				return err
+			}
 
 			view := resumeView{
 				Thread: threadResumeView{

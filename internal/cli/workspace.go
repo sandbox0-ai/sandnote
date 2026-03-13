@@ -21,10 +21,11 @@ func newWorkspaceCommand(opts *rootOptions) *cobra.Command {
 		newWorkspaceCreateCommand(opts),
 		newWorkspaceShowCommand(opts),
 		newWorkspaceListCommand(opts),
+		newWorkspaceUseCommand(opts),
 		newWorkspaceThreadsCommand(opts),
 		newWorkspaceFocusCommand(opts),
 	)
-	addNotImplementedSubcommands(cmd, "use", "attach", "detach")
+	addNotImplementedSubcommands(cmd, "attach", "detach")
 	return cmd
 }
 
@@ -126,6 +127,31 @@ func newWorkspaceListCommand(opts *rootOptions) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&workspaceOpts.query, "query", "", "filter by text query")
+	cmd.Flags().BoolVar(&workspaceOpts.json, "json", false, "output JSON")
+	return cmd
+}
+
+func newWorkspaceUseCommand(opts *rootOptions) *cobra.Command {
+	workspaceOpts := &workspaceOptions{}
+	cmd := &cobra.Command{
+		Use:   "use <id>",
+		Short: "Set the current workspace for canonical CLI and REPL flows",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			workspace, err := store.LoadWorkspace(args[0])
+			if err != nil {
+				return err
+			}
+			if err := updateActiveWorkSelection(store, workspace.ID, workspace.FocusThreadID); err != nil {
+				return err
+			}
+			return output(cmd, workspaceOpts.json, workspace, formatWorkspace(workspace))
+		},
+	}
 	cmd.Flags().BoolVar(&workspaceOpts.json, "json", false, "output JSON")
 	return cmd
 }
