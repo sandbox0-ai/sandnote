@@ -12,6 +12,7 @@ import (
 )
 
 const markerFile = "sandnote.json"
+const replSessionFile = "repl-session.json"
 
 type Store struct {
 	root string
@@ -19,6 +20,13 @@ type Store struct {
 
 type Marker struct {
 	Version int `json:"version"`
+}
+
+type REPLSession struct {
+	CurrentWorkspace         string   `json:"current_workspace,omitempty"`
+	FocusThread              string   `json:"focus_thread,omitempty"`
+	InspectionScope          []string `json:"inspection_scope,omitempty"`
+	PendingCheckpointContext string   `json:"pending_checkpoint_context,omitempty"`
 }
 
 func New(root string) *Store {
@@ -47,6 +55,31 @@ func (s *Store) Init() error {
 func (s *Store) Initialized() bool {
 	info, err := os.Stat(filepath.Join(s.root, markerFile))
 	return err == nil && !info.IsDir()
+}
+
+func (s *Store) SaveREPLSession(session REPLSession) error {
+	if !s.Initialized() {
+		return errors.New("store is not initialized")
+	}
+	return writeJSON(filepath.Join(s.root, replSessionFile), session)
+}
+
+func (s *Store) LoadREPLSession() (REPLSession, error) {
+	if !s.Initialized() {
+		return REPLSession{}, errors.New("store is not initialized")
+	}
+	path := filepath.Join(s.root, replSessionFile)
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return REPLSession{}, nil
+	} else if err != nil {
+		return REPLSession{}, err
+	}
+
+	var session REPLSession
+	if err := s.loadFile(path, &session); err != nil {
+		return REPLSession{}, err
+	}
+	return session, nil
 }
 
 func (s *Store) SaveEntry(entry model.Entry) error {

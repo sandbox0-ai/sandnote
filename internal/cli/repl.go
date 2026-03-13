@@ -27,7 +27,10 @@ func newREPLCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			state := &replState{}
+			state, err := loadREPLState(store)
+			if err != nil {
+				return err
+			}
 			return runREPL(cmd.InOrStdin(), cmd.OutOrStdout(), store, state)
 		},
 	}
@@ -55,7 +58,7 @@ func runREPL(in io.Reader, out io.Writer, store *fsstore.Store, state *replState
 		args := strings.Fields(line)
 		switch args[0] {
 		case "exit", "quit":
-			return nil
+			return saveREPLState(store, state)
 		case "help":
 			fmt.Fprintln(out, replHelp())
 		case "status":
@@ -92,6 +95,28 @@ func runREPL(in io.Reader, out io.Writer, store *fsstore.Store, state *replState
 			fmt.Fprintf(out, "error: unknown command %q\n", args[0])
 		}
 	}
+}
+
+func loadREPLState(store *fsstore.Store) (*replState, error) {
+	session, err := store.LoadREPLSession()
+	if err != nil {
+		return nil, err
+	}
+	return &replState{
+		currentWorkspace:         session.CurrentWorkspace,
+		focusThread:              session.FocusThread,
+		inspectionScope:          session.InspectionScope,
+		pendingCheckpointContext: session.PendingCheckpointContext,
+	}, nil
+}
+
+func saveREPLState(store *fsstore.Store, state *replState) error {
+	return store.SaveREPLSession(fsstore.REPLSession{
+		CurrentWorkspace:         state.currentWorkspace,
+		FocusThread:              state.focusThread,
+		InspectionScope:          state.inspectionScope,
+		PendingCheckpointContext: state.pendingCheckpointContext,
+	})
 }
 
 func replHelp() string {
@@ -134,6 +159,9 @@ func replWorkspace(out io.Writer, store *fsstore.Store, state *replState, args [
 		}
 		state.currentWorkspace = workspace.ID
 		state.focusThread = workspace.FocusThreadID
+		if err := saveREPLState(store, state); err != nil {
+			return err
+		}
 		fmt.Fprint(out, formatWorkspace(workspace))
 		return nil
 	case "show":
@@ -166,6 +194,9 @@ func replThread(out io.Writer, store *fsstore.Store, state *replState, args []st
 		}
 		state.focusThread = thread.ID
 		state.pendingCheckpointContext = ""
+		if err := saveREPLState(store, state); err != nil {
+			return err
+		}
 		fmt.Fprint(out, formatThreadShow(thread))
 		return nil
 	case "show":
@@ -189,6 +220,9 @@ func replResume(out io.Writer, store *fsstore.Store, state *replState) error {
 		return err
 	}
 	state.inspectionScope = []string{thread.ReentryAnchor}
+	if err := saveREPLState(store, state); err != nil {
+		return err
+	}
 	fmt.Fprint(out, formatThreadResume(thread))
 	return nil
 }
@@ -203,6 +237,9 @@ func replInspect(out io.Writer, store *fsstore.Store, state *replState) error {
 		return err
 	}
 	state.inspectionScope = thread.SupportingIDs
+	if err := saveREPLState(store, state); err != nil {
+		return err
+	}
 	fmt.Fprint(out, formatThreadInspect(thread, entries))
 	return nil
 }
@@ -228,11 +265,15 @@ func replCheckpoint(out io.Writer, store *fsstore.Store, state *replState, paylo
 	if value, ok := updates["anchor"]; ok {
 		thread.ReentryAnchor = value
 	}
+	state.pendingCheckpointContext = strings.TrimSpace(payload)
 	thread.UpdatedAt = nowUTC()
 	if err := store.SaveThread(thread); err != nil {
 		return err
 	}
 	state.pendingCheckpointContext = ""
+	if err := saveREPLState(store, state); err != nil {
+		return err
+	}
 	fmt.Fprint(out, formatThreadResume(thread))
 	return nil
 }
@@ -249,6 +290,9 @@ func replTransition(out io.Writer, store *fsstore.Store, state *replState, vital
 	thread.Vitality = next
 	thread.UpdatedAt = nowUTC()
 	if err := store.SaveThread(thread); err != nil {
+		return err
+	}
+	if err := saveREPLState(store, state); err != nil {
 		return err
 	}
 	fmt.Fprint(out, formatThreadShow(thread))
