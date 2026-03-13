@@ -40,6 +40,9 @@ func runREPL(in io.Reader, out io.Writer, store *fsstore.Store, state *replState
 	scanner := bufio.NewScanner(in)
 	fmt.Fprintln(out, "sandnote repl")
 	fmt.Fprintln(out, "type 'help' for commands, 'exit' to quit")
+	if text, err := replStartupSurface(store, state); err == nil && strings.TrimSpace(text) != "" {
+		fmt.Fprint(out, text)
+	}
 
 	for {
 		fmt.Fprint(out, "sandnote> ")
@@ -63,6 +66,10 @@ func runREPL(in io.Reader, out io.Writer, store *fsstore.Store, state *replState
 			fmt.Fprintln(out, replHelp())
 		case "status":
 			fmt.Fprint(out, formatREPLStatus(*state))
+		case "frontier":
+			if err := replFrontier(out, store, state); err != nil {
+				fmt.Fprintf(out, "error: %v\n", err)
+			}
 		case "workspace":
 			if err := replWorkspace(out, store, state, args[1:]); err != nil {
 				fmt.Fprintf(out, "error: %v\n", err)
@@ -123,6 +130,7 @@ func replHelp() string {
 	return joinLines(
 		"commands:",
 		"  status",
+		"  frontier",
 		"  workspace use <id>",
 		"  workspace show",
 		"  thread focus <id>",
@@ -193,6 +201,9 @@ func replThread(out io.Writer, store *fsstore.Store, state *replState, args []st
 			return err
 		}
 		state.focusThread = thread.ID
+		if thread.WorkspaceID != "" {
+			state.currentWorkspace = thread.WorkspaceID
+		}
 		state.pendingCheckpointContext = ""
 		if err := saveREPLState(store, state); err != nil {
 			return err
@@ -217,13 +228,37 @@ func replThread(out io.Writer, store *fsstore.Store, state *replState, args []st
 func replResume(out io.Writer, store *fsstore.Store, state *replState) error {
 	thread, err := focusedThread(store, state)
 	if err != nil {
-		return err
+		items, frontierErr := buildFrontier(store, state.currentWorkspace)
+		if frontierErr != nil {
+			return frontierErr
+		}
+		best, frontierErr := bestFrontierItem(items)
+		if frontierErr != nil {
+			return frontierErr
+		}
+		thread, frontierErr = store.LoadThread(best.ID)
+		if frontierErr != nil {
+			return frontierErr
+		}
+		state.focusThread = thread.ID
+		if thread.WorkspaceID != "" {
+			state.currentWorkspace = thread.WorkspaceID
+		}
 	}
 	state.inspectionScope = []string{thread.ReentryAnchor}
 	if err := saveREPLState(store, state); err != nil {
 		return err
 	}
 	fmt.Fprint(out, formatThreadResume(thread))
+	return nil
+}
+
+func replFrontier(out io.Writer, store *fsstore.Store, state *replState) error {
+	items, err := buildFrontier(store, state.currentWorkspace)
+	if err != nil {
+		return err
+	}
+	fmt.Fprint(out, formatFrontier(items, 5))
 	return nil
 }
 
@@ -317,4 +352,18 @@ func parseCheckpointPayload(payload string) map[string]string {
 		out[key] = value
 	}
 	return out
+}
+
+func replStartupSurface(store *fsstore.Store, state *replState) (string, error) {
+	if state.focusThread != "" {
+		thread, err := store.LoadThread(state.focusThread)
+		if err == nil && thread.Vitality == model.VitalityLive {
+			return formatThreadResume(thread), nil
+		}
+	}
+	items, err := buildFrontier(store, state.currentWorkspace)
+	if err != nil {
+		return "", err
+	}
+	return formatFrontier(items, 3), nil
 }

@@ -43,6 +43,8 @@ func Build(store *fsstore.Store) (fsstore.DerivedIndex, error) {
 			SupportingIDs: slices.Clone(thread.SupportingIDs),
 			CurrentBelief: thread.CurrentBelief,
 			OpenEdge:      thread.OpenEdge,
+			NextLean:      thread.NextLean,
+			ReentryAnchor: thread.ReentryAnchor,
 			UpdatedAt:     thread.UpdatedAt,
 		})
 	}

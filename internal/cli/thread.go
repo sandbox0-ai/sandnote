@@ -72,12 +72,44 @@ func newThreadCommand(opts *rootOptions) *cobra.Command {
 		newThreadCreateCommand(opts),
 		newThreadShowCommand(opts),
 		newThreadListCommand(opts),
+		newThreadFrontierCommand(opts),
 		newThreadResumeCommand(opts),
 		newThreadInspectCommand(opts),
 		newThreadCheckpointCommand(opts),
 		newThreadTransitionCommand(opts),
 	)
 	addNotImplementedSubcommands(cmd, "entries", "attach", "detach")
+	return cmd
+}
+
+func newThreadFrontierCommand(opts *rootOptions) *cobra.Command {
+	frontierOpts := &threadOptions{}
+	var limit int
+
+	cmd := &cobra.Command{
+		Use:   "frontier",
+		Short: "Show the ranked live frontier for continuable work",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			items, err := buildFrontier(store, frontierOpts.workspace)
+			if err != nil {
+				return err
+			}
+			if limit > 0 && len(items) > limit {
+				items = items[:limit]
+			}
+			if frontierOpts.json {
+				return output(cmd, true, items, "")
+			}
+			return output(cmd, false, nil, formatFrontier(items, limit))
+		},
+	}
+	cmd.Flags().StringVar(&frontierOpts.workspace, "workspace", "", "prefer live threads from a workspace")
+	cmd.Flags().IntVar(&limit, "limit", 5, "maximum number of frontier threads to show")
+	cmd.Flags().BoolVar(&frontierOpts.json, "json", false, "output JSON")
 	return cmd
 }
 

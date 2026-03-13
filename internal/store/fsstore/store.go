@@ -47,6 +47,8 @@ type DerivedThreadRecord struct {
 	SupportingIDs []string            `json:"supporting_ids,omitempty"`
 	CurrentBelief string              `json:"current_belief,omitempty"`
 	OpenEdge      string              `json:"open_edge,omitempty"`
+	NextLean      string              `json:"next_lean,omitempty"`
+	ReentryAnchor string              `json:"reentry_anchor,omitempty"`
 	UpdatedAt     time.Time           `json:"updated_at"`
 }
 
