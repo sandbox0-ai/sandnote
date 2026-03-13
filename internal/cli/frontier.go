@@ -23,15 +23,17 @@ type frontierItem struct {
 }
 
 type frontierContext struct {
-	targetWorkspace string
-	focusThread     string
-	workspaceFocus  map[string]string
+	targetWorkspace   string
+	explicitWorkspace bool
+	focusThread       string
+	workspaceFocus    map[string]string
 }
 
 func deriveFrontierContext(store *fsstore.Store, explicitWorkspace string) (frontierContext, error) {
 	ctx := frontierContext{
-		targetWorkspace: explicitWorkspace,
-		workspaceFocus:  map[string]string{},
+		targetWorkspace:   explicitWorkspace,
+		explicitWorkspace: strings.TrimSpace(explicitWorkspace) != "",
+		workspaceFocus:    map[string]string{},
 	}
 
 	session, err := store.LoadREPLSession()
@@ -66,16 +68,13 @@ func buildFrontier(store *fsstore.Store, explicitWorkspace string) ([]frontierIt
 		return nil, err
 	}
 
-	items := make([]frontierItem, 0, len(derived.Threads))
+	allItems := make([]frontierItem, 0, len(derived.Threads))
 	for _, thread := range derived.Threads {
 		if thread.Vitality != "live" {
 			continue
 		}
-		if ctx.targetWorkspace != "" && thread.WorkspaceID != ctx.targetWorkspace {
-			continue
-		}
 		score, reasons := continuationPressure(thread, ctx)
-		items = append(items, frontierItem{
+		allItems = append(allItems, frontierItem{
 			ID:                   thread.ID,
 			Question:             thread.Question,
 			WorkspaceID:          thread.WorkspaceID,
@@ -89,16 +88,30 @@ func buildFrontier(store *fsstore.Store, explicitWorkspace string) ([]frontierIt
 		})
 	}
 
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].ContinuationPressure != items[j].ContinuationPressure {
-			return items[i].ContinuationPressure > items[j].ContinuationPressure
+	sort.Slice(allItems, func(i, j int) bool {
+		if allItems[i].ContinuationPressure != allItems[j].ContinuationPressure {
+			return allItems[i].ContinuationPressure > allItems[j].ContinuationPressure
 		}
-		if !items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
-			return items[i].UpdatedAt.After(items[j].UpdatedAt)
+		if !allItems[i].UpdatedAt.Equal(allItems[j].UpdatedAt) {
+			return allItems[i].UpdatedAt.After(allItems[j].UpdatedAt)
 		}
-		return items[i].ID < items[j].ID
+		return allItems[i].ID < allItems[j].ID
 	})
-	return items, nil
+
+	if ctx.targetWorkspace == "" {
+		return allItems, nil
+	}
+
+	workspaceItems := make([]frontierItem, 0, len(allItems))
+	for _, item := range allItems {
+		if item.WorkspaceID == ctx.targetWorkspace {
+			workspaceItems = append(workspaceItems, item)
+		}
+	}
+	if len(workspaceItems) > 0 || ctx.explicitWorkspace {
+		return workspaceItems, nil
+	}
+	return allItems, nil
 }
 
 func continuationPressure(thread fsstore.DerivedThreadRecord, ctx frontierContext) (int, []string) {
@@ -132,6 +145,21 @@ func continuationPressure(thread fsstore.DerivedThreadRecord, ctx frontierContex
 	if strings.TrimSpace(thread.CurrentBelief) != "" {
 		score += 10
 		reasons = append(reasons, "current belief")
+	}
+	age := time.Since(thread.UpdatedAt)
+	switch {
+	case age <= 6*time.Hour:
+		score += 10
+		reasons = append(reasons, "recently updated")
+	case age <= 24*time.Hour:
+		score += 5
+		reasons = append(reasons, "recent context")
+	case age >= 7*24*time.Hour:
+		score -= 30
+		reasons = append(reasons, "stale live thread")
+	case age >= 72*time.Hour:
+		score -= 15
+		reasons = append(reasons, "aging live thread")
 	}
 
 	return score, reasons
