@@ -7,12 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/sandbox0-ai/sandnote/internal/model"
 )
 
 const markerFile = "sandnote.json"
 const replSessionFile = "repl-session.json"
+const derivedIndexFile = "index/index.json"
 
 type Store struct {
 	root string
@@ -27,6 +29,42 @@ type REPLSession struct {
 	FocusThread              string   `json:"focus_thread,omitempty"`
 	InspectionScope          []string `json:"inspection_scope,omitempty"`
 	PendingCheckpointContext string   `json:"pending_checkpoint_context,omitempty"`
+}
+
+type DerivedIndex struct {
+	GeneratedAt time.Time                `json:"generated_at"`
+	Threads     []DerivedThreadRecord    `json:"threads,omitempty"`
+	Workspaces  []DerivedWorkspaceRecord `json:"workspaces,omitempty"`
+	Topics      []DerivedTopicRecord     `json:"topics,omitempty"`
+}
+
+type DerivedThreadRecord struct {
+	ID            string              `json:"id"`
+	Question      string              `json:"question"`
+	Vitality      model.VitalityState `json:"vitality"`
+	WorkspaceID   string              `json:"workspace_id,omitempty"`
+	TopicIDs      []string            `json:"topic_ids,omitempty"`
+	SupportingIDs []string            `json:"supporting_ids,omitempty"`
+	CurrentBelief string              `json:"current_belief,omitempty"`
+	OpenEdge      string              `json:"open_edge,omitempty"`
+	UpdatedAt     time.Time           `json:"updated_at"`
+}
+
+type DerivedWorkspaceRecord struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	FocusThreadID string    `json:"focus_thread_id,omitempty"`
+	ThreadCount   int       `json:"thread_count"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type DerivedTopicRecord struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Orientation string    `json:"orientation,omitempty"`
+	ThreadCount int       `json:"thread_count"`
+	EntryCount  int       `json:"entry_count"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func New(root string) *Store {
@@ -80,6 +118,29 @@ func (s *Store) LoadREPLSession() (REPLSession, error) {
 		return REPLSession{}, err
 	}
 	return session, nil
+}
+
+func (s *Store) SaveDerivedIndex(index DerivedIndex) error {
+	if !s.Initialized() {
+		return errors.New("store is not initialized")
+	}
+	return writeJSON(filepath.Join(s.root, derivedIndexFile), index)
+}
+
+func (s *Store) LoadDerivedIndex() (DerivedIndex, error) {
+	if !s.Initialized() {
+		return DerivedIndex{}, errors.New("store is not initialized")
+	}
+	path := filepath.Join(s.root, derivedIndexFile)
+	if _, err := os.Stat(path); err != nil {
+		return DerivedIndex{}, err
+	}
+
+	var index DerivedIndex
+	if err := s.loadFile(path, &index); err != nil {
+		return DerivedIndex{}, err
+	}
+	return index, nil
 }
 
 func (s *Store) SaveEntry(entry model.Entry) error {
