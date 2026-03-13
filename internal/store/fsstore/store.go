@@ -74,6 +74,27 @@ func (s *Store) LoadEntries(ids []string) ([]model.Entry, error) {
 	return entries, nil
 }
 
+func (s *Store) ListEntries() ([]model.Entry, error) {
+	files, err := s.listObjectFiles("entries")
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]model.Entry, 0, len(files))
+	for _, file := range files {
+		var entry model.Entry
+		if err := s.loadFile(file, &entry); err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ID < entries[j].ID
+	})
+	return entries, nil
+}
+
 func (s *Store) SaveThread(thread model.Thread) error {
 	if err := thread.Validate(); err != nil {
 		return err
@@ -121,6 +142,27 @@ func (s *Store) LoadWorkspace(id string) (model.Workspace, error) {
 	return workspace, err
 }
 
+func (s *Store) ListWorkspaces() ([]model.Workspace, error) {
+	files, err := s.listObjectFiles("workspaces")
+	if err != nil {
+		return nil, err
+	}
+
+	workspaces := make([]model.Workspace, 0, len(files))
+	for _, file := range files {
+		var workspace model.Workspace
+		if err := s.loadFile(file, &workspace); err != nil {
+			return nil, err
+		}
+		workspaces = append(workspaces, workspace)
+	}
+
+	sort.Slice(workspaces, func(i, j int) bool {
+		return workspaces[i].ID < workspaces[j].ID
+	})
+	return workspaces, nil
+}
+
 func (s *Store) SaveTopic(topic model.Topic) error {
 	if err := topic.Validate(); err != nil {
 		return err
@@ -132,6 +174,27 @@ func (s *Store) LoadTopic(id string) (model.Topic, error) {
 	var topic model.Topic
 	err := s.load("topics", id, &topic)
 	return topic, err
+}
+
+func (s *Store) ListTopics() ([]model.Topic, error) {
+	files, err := s.listObjectFiles("topics")
+	if err != nil {
+		return nil, err
+	}
+
+	topics := make([]model.Topic, 0, len(files))
+	for _, file := range files {
+		var topic model.Topic
+		if err := s.loadFile(file, &topic); err != nil {
+			return nil, err
+		}
+		topics = append(topics, topic)
+	}
+
+	sort.Slice(topics, func(i, j int) bool {
+		return topics[i].ID < topics[j].ID
+	})
+	return topics, nil
 }
 
 func (s *Store) save(kind, id string, value any) error {

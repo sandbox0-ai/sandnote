@@ -32,11 +32,11 @@ func NewRootCommand() *cobra.Command {
 
 	cmd.AddCommand(
 		newInitCommand(opts),
-		newEntryCommand(),
+		newEntryCommand(opts),
 		newThreadCommand(opts),
-		newWorkspaceCommand(),
-		newTopicCommand(),
-		newREPLCommand(),
+		newWorkspaceCommand(opts),
+		newTopicCommand(opts),
+		newREPLCommand(opts),
 	)
 
 	return cmd
@@ -62,66 +62,6 @@ func newInitCommand(opts *rootOptions) *cobra.Command {
 			fmt.Fprintf(cmd.OutOrStdout(), "initialized sandnote store at %s\n", store.Root())
 			return nil
 		},
-	}
-}
-
-func newEntryCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "entry",
-		Short: "Manage lightweight thinking units",
-	}
-	addNotImplementedSubcommands(cmd,
-		"create",
-		"show",
-		"list",
-		"revise",
-		"link",
-		"attach",
-		"archive",
-	)
-	return cmd
-}
-
-func newWorkspaceCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "workspace",
-		Short: "Manage current thinking context",
-	}
-	addNotImplementedSubcommands(cmd,
-		"create",
-		"show",
-		"list",
-		"use",
-		"threads",
-		"focus",
-		"attach",
-		"detach",
-	)
-	return cmd
-}
-
-func newTopicCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "topic",
-		Short: "Manage durable re-entry surfaces",
-	}
-	addNotImplementedSubcommands(cmd,
-		"create",
-		"show",
-		"list",
-		"orient",
-		"promote",
-		"entries",
-		"threads",
-	)
-	return cmd
-}
-
-func newREPLCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "repl",
-		Short: "Start the stateful working console",
-		RunE:  notImplemented("repl"),
 	}
 }
 
