@@ -284,6 +284,46 @@ func TestREPLRestoresPersistedSessionState(t *testing.T) {
 	}
 }
 
+func TestREPLCheckpointRejectsLowQualityLiveCheckpoint(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	store := fsstore.New(root)
+
+	bare := model.Thread{
+		ID:          "th_bare",
+		Question:    "What if the repl tries a weak checkpoint?",
+		Vitality:    model.VitalityLive,
+		WorkspaceID: "ws_1",
+		CreatedAt:   nowUTC(),
+		UpdatedAt:   nowUTC(),
+	}
+	if err := store.SaveThread(bare); err != nil {
+		t.Fatalf("SaveThread() error = %v", err)
+	}
+	if err := store.SaveREPLSession(fsstore.REPLSession{
+		CurrentWorkspace: "ws_1",
+		FocusThread:      "th_bare",
+	}); err != nil {
+		t.Fatalf("SaveREPLSession() error = %v", err)
+	}
+
+	in := bytes.NewBufferString("checkpoint belief=still-thinking\nexit\n")
+	out := &bytes.Buffer{}
+
+	state, err := loadREPLState(store)
+	if err != nil {
+		t.Fatalf("loadREPLState() error = %v", err)
+	}
+	if err := runREPL(in, out, store, state); err != nil {
+		t.Fatalf("runREPL() error = %v", err)
+	}
+
+	if !strings.Contains(out.String(), "live thread checkpoints must leave a clear") {
+		t.Fatalf("expected repl checkpoint quality error:\n%s", out.String())
+	}
+}
+
 func TestIndexRebuildSupportsThreadWorkspaceAndTopicQueries(t *testing.T) {
 	t.Parallel()
 

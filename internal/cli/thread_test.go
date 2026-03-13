@@ -204,6 +204,33 @@ func TestThreadCheckpointRequiresContinuityFlags(t *testing.T) {
 	}
 }
 
+func TestThreadCheckpointRejectsLiveThreadWithoutEdgeAndAnchor(t *testing.T) {
+	t.Parallel()
+
+	root := seedThreadStore(t)
+	store := fsstore.New(root)
+	bare := model.Thread{
+		ID:        "th_bare",
+		Question:  "What if a live thread lacks resumability?",
+		Vitality:  model.VitalityLive,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := store.SaveThread(bare); err != nil {
+		t.Fatalf("SaveThread() error = %v", err)
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"--root", root, "thread", "checkpoint", "th_bare", "--belief", "still thinking"})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "live thread checkpoints must leave a clear") {
+		t.Fatalf("expected checkpoint quality error, got %v", err)
+	}
+}
+
 func executeCLI(t *testing.T, root string, args ...string) *bytes.Buffer {
 	t.Helper()
 
