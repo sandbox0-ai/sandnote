@@ -51,6 +51,44 @@ func TestEntryLinkAddsRelatedContextWithoutDuplicates(t *testing.T) {
 	}
 }
 
+func TestEntryArchiveMarksEntryArchivedWithoutLosingContent(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "entry", "link", "en_1", "th_1", "tp_1")
+	output := executeCLI(t, root, "entry", "archive", "en_1", "--json")
+
+	var got model.Entry
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got.State != "archived" || got.Subject != "anchor" || got.Meaning != "thread anchor" {
+		t.Fatalf("unexpected archived entry: %+v", got)
+	}
+	if len(got.RelatedContext) != 2 {
+		t.Fatalf("expected related context preserved on archive: %+v", got)
+	}
+}
+
+func TestEntryArchiveRemainsVisibleInShowOutput(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "entry", "archive", "en_1")
+	output := executeCLI(t, root, "entry", "show", "en_1")
+	text := output.String()
+
+	for _, want := range []string{
+		"entry en_1",
+		"state: archived",
+		"meaning: thread anchor",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("expected archived entry to remain visible, missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestEntryShowDisplaysRelatedContext(t *testing.T) {
 	t.Parallel()
 

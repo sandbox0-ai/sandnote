@@ -20,10 +20,11 @@ func newEntryCommand(opts *rootOptions) *cobra.Command {
 		newEntryCreateCommand(opts),
 		newEntryShowCommand(opts),
 		newEntryListCommand(opts),
+		newEntryArchiveCommand(opts),
 		newEntryLinkCommand(opts),
 		newEntryReviseCommand(opts),
 	)
-	addNotImplementedSubcommands(cmd, "attach", "archive")
+	addNotImplementedSubcommands(cmd, "attach")
 	return cmd
 }
 
@@ -189,6 +190,33 @@ func newEntryLinkCommand(opts *rootOptions) *cobra.Command {
 					entry.RelatedContext = append(entry.RelatedContext, related)
 				}
 			}
+			entry.UpdatedAt = nowUTC()
+			if err := store.SaveEntry(entry); err != nil {
+				return err
+			}
+			return output(cmd, entryOpts.json, entry, formatEntry(entry))
+		},
+	}
+	cmd.Flags().BoolVar(&entryOpts.json, "json", false, "output JSON")
+	return cmd
+}
+
+func newEntryArchiveCommand(opts *rootOptions) *cobra.Command {
+	entryOpts := &entryOptions{}
+	cmd := &cobra.Command{
+		Use:   "archive <id>",
+		Short: "Archive an entry without deleting it",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			entry, err := store.LoadEntry(args[0])
+			if err != nil {
+				return err
+			}
+			entry.State = "archived"
 			entry.UpdatedAt = nowUTC()
 			if err := store.SaveEntry(entry); err != nil {
 				return err
