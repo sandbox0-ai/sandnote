@@ -28,6 +28,17 @@ func joinLines(lines ...string) string {
 	return strings.Join(filtered, "\n") + "\n"
 }
 
+func joinCSV(values []string) string {
+	filtered := make([]string, 0, len(values))
+	for _, value := range values {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		filtered = append(filtered, value)
+	}
+	return strings.Join(filtered, ", ")
+}
+
 type entryListItem struct {
 	ID        string    `json:"id"`
 	Subject   string    `json:"subject"`
@@ -148,11 +159,7 @@ func matchesQuery(query string, values ...string) bool {
 }
 
 func loadOrBuildIndex(store *fsstore.Store) (fsstore.DerivedIndex, error) {
-	derived, err := store.LoadDerivedIndex()
-	if err == nil {
-		return derived, nil
-	}
-	derived, err = index.Build(store)
+	derived, err := index.Build(store)
 	if err != nil {
 		return fsstore.DerivedIndex{}, err
 	}
