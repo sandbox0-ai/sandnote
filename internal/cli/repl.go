@@ -274,12 +274,3 @@ func parseCheckpointPayload(payload string) map[string]string {
 	}
 	return out
 }
-
-func contains(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
-}

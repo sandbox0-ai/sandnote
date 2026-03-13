@@ -57,6 +57,61 @@ func TestTopicOrientUpdatesOrientation(t *testing.T) {
 	}
 }
 
+func TestTopicPromoteFromThreadAddsAnchorByDefault(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	output := executeCLI(t, root, "topic", "promote", "tp_1", "--thread", "th_1", "--json")
+
+	var got model.Topic
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !contains(got.ThreadIDs, "th_1") {
+		t.Fatalf("expected promoted thread in topic: %+v", got)
+	}
+	if !contains(got.EntryIDs, "en_1") {
+		t.Fatalf("expected re-entry anchor in topic: %+v", got)
+	}
+}
+
+func TestTopicPromoteCanIncludeSupportingEntries(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+
+	store := fsstore.New(root)
+	extra := model.Entry{
+		ID:        "en_2",
+		Subject:   "supporting",
+		Meaning:   "extra supporting material",
+		CreatedAt: nowUTC(),
+		UpdatedAt: nowUTC(),
+	}
+	if err := store.SaveEntry(extra); err != nil {
+		t.Fatalf("SaveEntry() error = %v", err)
+	}
+	thread, err := store.LoadThread("th_1")
+	if err != nil {
+		t.Fatalf("LoadThread() error = %v", err)
+	}
+	thread.SupportingIDs = []string{"en_1", "en_2"}
+	thread.UpdatedAt = nowUTC()
+	if err := store.SaveThread(thread); err != nil {
+		t.Fatalf("SaveThread() error = %v", err)
+	}
+
+	output := executeCLI(t, root, "topic", "promote", "tp_1", "--thread", "th_1", "--include-supporting", "--json")
+
+	var got model.Topic
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !contains(got.EntryIDs, "en_2") {
+		t.Fatalf("expected supporting entry in topic: %+v", got)
+	}
+}
+
 func TestREPLMaintainsWorkspaceAndThreadState(t *testing.T) {
 	t.Parallel()
 
