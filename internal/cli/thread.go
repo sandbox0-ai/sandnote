@@ -76,10 +76,12 @@ func newThreadCommand(opts *rootOptions) *cobra.Command {
 		newThreadFrontierCommand(opts),
 		newThreadResumeCommand(opts),
 		newThreadInspectCommand(opts),
+		newThreadEntriesCommand(opts),
+		newThreadAttachCommand(opts),
+		newThreadDetachCommand(opts),
 		newThreadCheckpointCommand(opts),
 		newThreadTransitionCommand(opts),
 	)
-	addNotImplementedSubcommands(cmd, "entries", "attach", "detach")
 	return cmd
 }
 
@@ -359,6 +361,121 @@ func newThreadInspectCommand(opts *rootOptions) *cobra.Command {
 	return cmd
 }
 
+func newThreadEntriesCommand(opts *rootOptions) *cobra.Command {
+	entriesOpts := &threadOptions{}
+	cmd := &cobra.Command{
+		Use:   "entries <id>",
+		Short: "List the entries currently supporting a thread",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			thread, err := store.LoadThread(args[0])
+			if err != nil {
+				return err
+			}
+			entries, err := store.LoadEntries(thread.SupportingIDs)
+			if err != nil {
+				return err
+			}
+			if entriesOpts.json {
+				return output(cmd, true, entries, "")
+			}
+			return output(cmd, false, nil, formatThreadEntries(thread, entries))
+		},
+	}
+	cmd.Flags().BoolVar(&entriesOpts.json, "json", false, "output JSON")
+	return cmd
+}
+
+func newThreadAttachCommand(opts *rootOptions) *cobra.Command {
+	attachOpts := &threadOptions{}
+	cmd := &cobra.Command{
+		Use:   "attach <thread-id> <entry-id>",
+		Short: "Attach an entry to a thread's supporting context",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			thread, err := store.LoadThread(args[0])
+			if err != nil {
+				return err
+			}
+			entry, err := store.LoadEntry(args[1])
+			if err != nil {
+				return err
+			}
+			if !contains(thread.SupportingIDs, entry.ID) {
+				thread.SupportingIDs = append(thread.SupportingIDs, entry.ID)
+				thread.UpdatedAt = nowUTC()
+				if err := store.SaveThread(thread); err != nil {
+					return err
+				}
+			}
+			entries, err := store.LoadEntries(thread.SupportingIDs)
+			if err != nil {
+				return err
+			}
+			if attachOpts.json {
+				return output(cmd, true, threadInspectView{
+					Thread:            thread,
+					SupportingEntries: entries,
+				}, "")
+			}
+			return output(cmd, false, nil, formatThreadEntries(thread, entries))
+		},
+	}
+	cmd.Flags().BoolVar(&attachOpts.json, "json", false, "output JSON")
+	return cmd
+}
+
+func newThreadDetachCommand(opts *rootOptions) *cobra.Command {
+	detachOpts := &threadOptions{}
+	cmd := &cobra.Command{
+		Use:   "detach <thread-id> <entry-id>",
+		Short: "Detach an entry from a thread's supporting context",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			thread, err := store.LoadThread(args[0])
+			if err != nil {
+				return err
+			}
+			nextSupporting := make([]string, 0, len(thread.SupportingIDs))
+			for _, id := range thread.SupportingIDs {
+				if id != args[1] {
+					nextSupporting = append(nextSupporting, id)
+				}
+			}
+			thread.SupportingIDs = nextSupporting
+			thread.UpdatedAt = nowUTC()
+			if err := store.SaveThread(thread); err != nil {
+				return err
+			}
+			entries, err := store.LoadEntries(thread.SupportingIDs)
+			if err != nil {
+				return err
+			}
+			if detachOpts.json {
+				return output(cmd, true, threadInspectView{
+					Thread:            thread,
+					SupportingEntries: entries,
+				}, "")
+			}
+			return output(cmd, false, nil, formatThreadEntries(thread, entries))
+		},
+	}
+	cmd.Flags().BoolVar(&detachOpts.json, "json", false, "output JSON")
+	return cmd
+}
+
 func newThreadCheckpointCommand(opts *rootOptions) *cobra.Command {
 	checkpointOpts := &threadOptions{}
 	cmd := &cobra.Command{
@@ -529,6 +646,19 @@ func formatThreadInspect(thread model.Thread, entries []model.Entry) string {
 		for _, entry := range entries {
 			lines = append(lines, fmt.Sprintf("- %s: %s", entry.ID, entry.Subject))
 		}
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func formatThreadEntries(thread model.Thread, entries []model.Entry) string {
+	var lines []string
+	lines = append(lines, fmt.Sprintf("thread %s entries", thread.ID))
+	if len(entries) == 0 {
+		lines = append(lines, "no supporting entries")
+		return strings.Join(lines, "\n") + "\n"
+	}
+	for _, entry := range entries {
+		lines = append(lines, fmt.Sprintf("- %s: %s", entry.ID, entry.Subject))
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
