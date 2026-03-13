@@ -215,3 +215,34 @@ func TestSaveBeforeInitFails(t *testing.T) {
 		t.Fatal("SaveEntry() expected initialization error")
 	}
 }
+
+func TestSaveLoadREPLSessionRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	store := New(filepath.Join(root, ".sandnote"))
+	if err := store.Init(); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	session := REPLSession{
+		CurrentWorkspace:         "ws_1",
+		FocusThread:              "th_1",
+		InspectionScope:          []string{"en_1", "en_2"},
+		PendingCheckpointContext: "belief=stable",
+	}
+	if err := store.SaveREPLSession(session); err != nil {
+		t.Fatalf("SaveREPLSession() error = %v", err)
+	}
+
+	got, err := store.LoadREPLSession()
+	if err != nil {
+		t.Fatalf("LoadREPLSession() error = %v", err)
+	}
+	if got.CurrentWorkspace != session.CurrentWorkspace || got.FocusThread != session.FocusThread {
+		t.Fatalf("unexpected repl session: got %+v want %+v", got, session)
+	}
+	if len(got.InspectionScope) != 2 || got.PendingCheckpointContext != session.PendingCheckpointContext {
+		t.Fatalf("unexpected repl session details: got %+v want %+v", got, session)
+	}
+}

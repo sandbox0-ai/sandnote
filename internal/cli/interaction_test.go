@@ -160,6 +160,44 @@ func TestREPLMaintainsWorkspaceAndThreadState(t *testing.T) {
 	}
 }
 
+func TestREPLRestoresPersistedSessionState(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	store := fsstore.New(root)
+	if err := store.SaveREPLSession(fsstore.REPLSession{
+		CurrentWorkspace:         "ws_1",
+		FocusThread:              "th_1",
+		InspectionScope:          []string{"en_1"},
+		PendingCheckpointContext: "belief=carry",
+	}); err != nil {
+		t.Fatalf("SaveREPLSession() error = %v", err)
+	}
+
+	in := bytes.NewBufferString("status\nexit\n")
+	out := &bytes.Buffer{}
+
+	state, err := loadREPLState(store)
+	if err != nil {
+		t.Fatalf("loadREPLState() error = %v", err)
+	}
+	if err := runREPL(in, out, store, state); err != nil {
+		t.Fatalf("runREPL() error = %v", err)
+	}
+
+	text := out.String()
+	for _, want := range []string{
+		"workspace: ws_1",
+		"focus thread: th_1",
+		"inspection scope: en_1",
+		"pending checkpoint context: belief=carry",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("restored status missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func seedInteractionStore(t *testing.T) string {
 	t.Helper()
 
