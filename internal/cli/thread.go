@@ -568,6 +568,9 @@ func newThreadTransitionCommand(opts *rootOptions) *cobra.Command {
 			if err := store.SaveThread(thread); err != nil {
 				return err
 			}
+			if err := alignActiveSelectionAfterTransition(store, thread); err != nil {
+				return err
+			}
 
 			view := threadShowView{
 				ID:            thread.ID,
