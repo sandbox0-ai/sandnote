@@ -20,9 +20,10 @@ func newEntryCommand(opts *rootOptions) *cobra.Command {
 		newEntryCreateCommand(opts),
 		newEntryShowCommand(opts),
 		newEntryListCommand(opts),
+		newEntryLinkCommand(opts),
 		newEntryReviseCommand(opts),
 	)
-	addNotImplementedSubcommands(cmd, "link", "attach", "archive")
+	addNotImplementedSubcommands(cmd, "attach", "archive")
 	return cmd
 }
 
@@ -164,6 +165,37 @@ func newEntryReviseCommand(opts *rootOptions) *cobra.Command {
 	cmd.Flags().StringVar(&subject, "subject", "", "update subject")
 	cmd.Flags().StringVar(&state, "state", "", "update state")
 	cmd.Flags().StringVar(&meaning, "meaning", "", "update meaning")
+	cmd.Flags().BoolVar(&entryOpts.json, "json", false, "output JSON")
+	return cmd
+}
+
+func newEntryLinkCommand(opts *rootOptions) *cobra.Command {
+	entryOpts := &entryOptions{}
+	cmd := &cobra.Command{
+		Use:   "link <id> <related-id> [more-related-ids...]",
+		Short: "Add related context references to an entry",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			entry, err := store.LoadEntry(args[0])
+			if err != nil {
+				return err
+			}
+			for _, related := range args[1:] {
+				if !contains(entry.RelatedContext, related) {
+					entry.RelatedContext = append(entry.RelatedContext, related)
+				}
+			}
+			entry.UpdatedAt = nowUTC()
+			if err := store.SaveEntry(entry); err != nil {
+				return err
+			}
+			return output(cmd, entryOpts.json, entry, formatEntry(entry))
+		},
+	}
 	cmd.Flags().BoolVar(&entryOpts.json, "json", false, "output JSON")
 	return cmd
 }
