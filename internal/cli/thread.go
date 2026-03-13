@@ -14,9 +14,12 @@ import (
 )
 
 type threadOptions struct {
-	json     bool
-	vitality string
-	to       string
+	json      bool
+	vitality  string
+	to        string
+	workspace string
+	topic     string
+	query     string
 
 	belief        string
 	openEdge      string
@@ -29,6 +32,7 @@ type threadListItem struct {
 	Question      string              `json:"question"`
 	Vitality      model.VitalityState `json:"vitality"`
 	WorkspaceID   string              `json:"workspace_id,omitempty"`
+	TopicIDs      []string            `json:"topic_ids,omitempty"`
 	UpdatedAt     time.Time           `json:"updated_at"`
 	CurrentBelief string              `json:"current_belief,omitempty"`
 	OpenEdge      string              `json:"open_edge,omitempty"`
@@ -168,14 +172,31 @@ func newThreadListCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			threads, err := store.ListThreads()
+			derived, err := loadOrBuildIndex(store)
 			if err != nil {
 				return err
 			}
 
-			filtered := make([]threadListItem, 0, len(threads))
-			for _, thread := range threads {
+			filtered := make([]threadListItem, 0, len(derived.Threads))
+			for _, thread := range derived.Threads {
 				if listOpts.vitality != "" && string(thread.Vitality) != listOpts.vitality {
+					continue
+				}
+				if listOpts.workspace != "" && thread.WorkspaceID != listOpts.workspace {
+					continue
+				}
+				if listOpts.topic != "" && !contains(thread.TopicIDs, listOpts.topic) {
+					continue
+				}
+				if !matchesQuery(
+					listOpts.query,
+					thread.ID,
+					thread.Question,
+					thread.CurrentBelief,
+					thread.OpenEdge,
+					thread.WorkspaceID,
+					strings.Join(thread.TopicIDs, " "),
+				) {
 					continue
 				}
 				filtered = append(filtered, threadListItem{
@@ -183,6 +204,7 @@ func newThreadListCommand(opts *rootOptions) *cobra.Command {
 					Question:      thread.Question,
 					Vitality:      thread.Vitality,
 					WorkspaceID:   thread.WorkspaceID,
+					TopicIDs:      thread.TopicIDs,
 					UpdatedAt:     thread.UpdatedAt,
 					CurrentBelief: thread.CurrentBelief,
 					OpenEdge:      thread.OpenEdge,
@@ -203,6 +225,9 @@ func newThreadListCommand(opts *rootOptions) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&listOpts.vitality, "vitality", "", "filter by vitality state")
+	cmd.Flags().StringVar(&listOpts.workspace, "workspace", "", "filter by workspace id")
+	cmd.Flags().StringVar(&listOpts.topic, "topic", "", "filter by topic id")
+	cmd.Flags().StringVar(&listOpts.query, "query", "", "filter by text query")
 	cmd.Flags().BoolVar(&listOpts.json, "json", false, "output JSON")
 	return cmd
 }
@@ -451,6 +476,9 @@ func formatThreadListItem(item threadListItem) string {
 	}
 	if item.WorkspaceID != "" {
 		parts = append(parts, "workspace="+item.WorkspaceID)
+	}
+	if len(item.TopicIDs) > 0 {
+		parts = append(parts, "topics="+strings.Join(item.TopicIDs, ","))
 	}
 	return strings.Join(parts, " ")
 }

@@ -246,3 +246,62 @@ func TestSaveLoadREPLSessionRoundTrip(t *testing.T) {
 		t.Fatalf("unexpected repl session details: got %+v want %+v", got, session)
 	}
 }
+
+func TestSaveLoadDerivedIndexRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	store := New(filepath.Join(root, ".sandnote"))
+	if err := store.Init(); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	index := DerivedIndex{
+		GeneratedAt: time.Now().UTC().Round(time.Second),
+		Threads: []DerivedThreadRecord{
+			{
+				ID:          "th_1",
+				Question:    "How should resumability be indexed?",
+				Vitality:    model.VitalityLive,
+				WorkspaceID: "ws_1",
+				TopicIDs:    []string{"tp_1"},
+				UpdatedAt:   time.Now().UTC().Round(time.Second),
+			},
+		},
+		Workspaces: []DerivedWorkspaceRecord{
+			{
+				ID:          "ws_1",
+				Name:        "task/index",
+				ThreadCount: 1,
+				UpdatedAt:   time.Now().UTC().Round(time.Second),
+			},
+		},
+		Topics: []DerivedTopicRecord{
+			{
+				ID:          "tp_1",
+				Name:        "indexing",
+				ThreadCount: 1,
+				EntryCount:  1,
+				UpdatedAt:   time.Now().UTC().Round(time.Second),
+			},
+		},
+	}
+
+	if err := store.SaveDerivedIndex(index); err != nil {
+		t.Fatalf("SaveDerivedIndex() error = %v", err)
+	}
+
+	got, err := store.LoadDerivedIndex()
+	if err != nil {
+		t.Fatalf("LoadDerivedIndex() error = %v", err)
+	}
+	if len(got.Threads) != 1 || got.Threads[0].ID != "th_1" {
+		t.Fatalf("unexpected derived index threads: %+v", got.Threads)
+	}
+	if len(got.Workspaces) != 1 || got.Workspaces[0].ThreadCount != 1 {
+		t.Fatalf("unexpected derived index workspaces: %+v", got.Workspaces)
+	}
+	if len(got.Topics) != 1 || got.Topics[0].EntryCount != 1 {
+		t.Fatalf("unexpected derived index topics: %+v", got.Topics)
+	}
+}

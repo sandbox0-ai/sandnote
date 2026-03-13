@@ -8,7 +8,8 @@ import (
 )
 
 type workspaceOptions struct {
-	json bool
+	json  bool
+	query string
 }
 
 func newWorkspaceCommand(opts *rootOptions) *cobra.Command {
@@ -94,16 +95,20 @@ func newWorkspaceListCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workspaces, err := store.ListWorkspaces()
+			derived, err := loadOrBuildIndex(store)
 			if err != nil {
 				return err
 			}
-			items := make([]workspaceListItem, 0, len(workspaces))
-			for _, workspace := range workspaces {
+			items := make([]workspaceListItem, 0, len(derived.Workspaces))
+			for _, workspace := range derived.Workspaces {
+				if !matchesQuery(workspaceOpts.query, workspace.ID, workspace.Name, workspace.FocusThreadID) {
+					continue
+				}
 				items = append(items, workspaceListItem{
 					ID:            workspace.ID,
 					Name:          workspace.Name,
 					FocusThreadID: workspace.FocusThreadID,
+					ThreadCount:   workspace.ThreadCount,
 					UpdatedAt:     workspace.UpdatedAt,
 				})
 			}
@@ -120,6 +125,7 @@ func newWorkspaceListCommand(opts *rootOptions) *cobra.Command {
 			return output(cmd, false, nil, text)
 		},
 	}
+	cmd.Flags().StringVar(&workspaceOpts.query, "query", "", "filter by text query")
 	cmd.Flags().BoolVar(&workspaceOpts.json, "json", false, "output JSON")
 	return cmd
 }

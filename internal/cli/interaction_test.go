@@ -198,6 +198,40 @@ func TestREPLRestoresPersistedSessionState(t *testing.T) {
 	}
 }
 
+func TestIndexRebuildSupportsThreadWorkspaceAndTopicQueries(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "index", "rebuild")
+
+	threadOutput := executeCLI(t, root, "thread", "list", "--workspace", "ws_1", "--topic", "tp_1", "--query", "checkpoint", "--json")
+	var threads []threadListItem
+	if err := json.Unmarshal(threadOutput.Bytes(), &threads); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(threads) != 1 || threads[0].ID != "th_1" {
+		t.Fatalf("unexpected thread query results: %+v", threads)
+	}
+
+	workspaceOutput := executeCLI(t, root, "workspace", "list", "--query", "task/auth", "--json")
+	var workspaces []workspaceListItem
+	if err := json.Unmarshal(workspaceOutput.Bytes(), &workspaces); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(workspaces) != 1 || workspaces[0].ThreadCount != 1 {
+		t.Fatalf("unexpected workspace query results: %+v", workspaces)
+	}
+
+	topicOutput := executeCLI(t, root, "topic", "list", "--query", "auth", "--json")
+	var topics []topicListItem
+	if err := json.Unmarshal(topicOutput.Bytes(), &topics); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(topics) != 1 || topics[0].ThreadCount != 1 || topics[0].EntryCount != 1 {
+		t.Fatalf("unexpected topic query results: %+v", topics)
+	}
+}
+
 func seedInteractionStore(t *testing.T) string {
 	t.Helper()
 
@@ -231,6 +265,8 @@ func seedInteractionStore(t *testing.T) string {
 	topic := model.Topic{
 		ID:        "tp_1",
 		Name:      "auth",
+		EntryIDs:  []string{"en_1"},
+		ThreadIDs: []string{"th_1"},
 		CreatedAt: nowUTC(),
 		UpdatedAt: nowUTC(),
 	}
@@ -246,6 +282,7 @@ func seedInteractionStore(t *testing.T) string {
 		NextLean:      "inspect supporting entries",
 		ReentryAnchor: "en_1",
 		Vitality:      model.VitalityLive,
+		WorkspaceID:   "ws_1",
 		SupportingIDs: []string{"en_1"},
 		CreatedAt:     nowUTC(),
 		UpdatedAt:     nowUTC(),

@@ -8,7 +8,8 @@ import (
 )
 
 type topicOptions struct {
-	json bool
+	json  bool
+	query string
 }
 
 func newTopicCommand(opts *rootOptions) *cobra.Command {
@@ -96,16 +97,21 @@ func newTopicListCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			topics, err := store.ListTopics()
+			derived, err := loadOrBuildIndex(store)
 			if err != nil {
 				return err
 			}
-			items := make([]topicListItem, 0, len(topics))
-			for _, topic := range topics {
+			items := make([]topicListItem, 0, len(derived.Topics))
+			for _, topic := range derived.Topics {
+				if !matchesQuery(topicOpts.query, topic.ID, topic.Name, topic.Orientation) {
+					continue
+				}
 				items = append(items, topicListItem{
 					ID:          topic.ID,
 					Name:        topic.Name,
 					Orientation: topic.Orientation,
+					ThreadCount: topic.ThreadCount,
+					EntryCount:  topic.EntryCount,
 					UpdatedAt:   topic.UpdatedAt,
 				})
 			}
@@ -122,6 +128,7 @@ func newTopicListCommand(opts *rootOptions) *cobra.Command {
 			return output(cmd, false, nil, text)
 		},
 	}
+	cmd.Flags().StringVar(&topicOpts.query, "query", "", "filter by text query")
 	cmd.Flags().BoolVar(&topicOpts.json, "json", false, "output JSON")
 	return cmd
 }
