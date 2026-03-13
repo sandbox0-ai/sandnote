@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sandbox0-ai/sandnote/internal/model"
 	"github.com/sandbox0-ai/sandnote/internal/store/fsstore"
@@ -82,6 +83,52 @@ func TestREPLStartupAndResumeUseLiveFrontier(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("repl output missing %q:\n%s", want, text)
 		}
+	}
+}
+
+func TestTopLevelResumeFallsBackWhenImplicitWorkspaceHasNoLiveThreads(t *testing.T) {
+	t.Parallel()
+
+	root := seedFrontierStoreWithoutFocus(t)
+	store := fsstore.New(root)
+	if err := store.SaveREPLSession(fsstore.REPLSession{
+		CurrentWorkspace: "ws_empty",
+	}); err != nil {
+		t.Fatalf("SaveREPLSession() error = %v", err)
+	}
+
+	output := executeCLI(t, root, "resume", "--json")
+
+	var got resumeView
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got.WorkspaceID == "ws_empty" || got.Thread.ID == "" {
+		t.Fatalf("expected fallback into a real global live thread, got %+v", got)
+	}
+	if got.Thread.ID == "th_old" {
+		t.Fatalf("expected fallback to avoid non-live thread, got %+v", got)
+	}
+}
+
+func TestThreadFrontierDecaysStaleLiveThreads(t *testing.T) {
+	t.Parallel()
+
+	root := seedFrontierDecayStore(t)
+	output := executeCLI(t, root, "thread", "frontier", "--workspace", "ws_decay", "--json")
+
+	var got []frontierItem
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("unexpected frontier count: %+v", got)
+	}
+	if got[0].ID != "th_fresh" {
+		t.Fatalf("expected fresh live thread first: %+v", got)
+	}
+	if !contains(got[1].Reasons, "stale live thread") {
+		t.Fatalf("expected stale reason on older thread: %+v", got[1])
 	}
 }
 
@@ -184,6 +231,72 @@ func seedFrontierStoreWithoutFocus(t *testing.T) string {
 		CurrentWorkspace: "ws_auth",
 	}); err != nil {
 		t.Fatalf("SaveREPLSession() error = %v", err)
+	}
+
+	return root
+}
+
+func seedFrontierDecayStore(t *testing.T) string {
+	t.Helper()
+
+	root := filepath.Join(t.TempDir(), ".sandnote")
+	store := fsstore.New(root)
+	if err := store.Init(); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	now := nowUTC()
+	old := now.Add(-10 * 24 * time.Hour)
+	for _, entry := range []model.Entry{
+		{ID: "en_old", Subject: "old anchor", Meaning: "old live thread", CreatedAt: old, UpdatedAt: old},
+		{ID: "en_fresh", Subject: "fresh anchor", Meaning: "fresh live thread", CreatedAt: now, UpdatedAt: now},
+	} {
+		if err := store.SaveEntry(entry); err != nil {
+			t.Fatalf("SaveEntry() error = %v", err)
+		}
+	}
+
+	workspace := model.Workspace{
+		ID:        "ws_decay",
+		Name:      "task/decay",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := store.SaveWorkspace(workspace); err != nil {
+		t.Fatalf("SaveWorkspace() error = %v", err)
+	}
+
+	for _, thread := range []model.Thread{
+		{
+			ID:            "th_old",
+			Question:      "Old live thread",
+			CurrentBelief: "old belief",
+			OpenEdge:      "old edge",
+			NextLean:      "old lean",
+			ReentryAnchor: "en_old",
+			Vitality:      model.VitalityLive,
+			WorkspaceID:   "ws_decay",
+			SupportingIDs: []string{"en_old"},
+			CreatedAt:     old,
+			UpdatedAt:     old,
+		},
+		{
+			ID:            "th_fresh",
+			Question:      "Fresh live thread",
+			CurrentBelief: "fresh belief",
+			OpenEdge:      "fresh edge",
+			NextLean:      "fresh lean",
+			ReentryAnchor: "en_fresh",
+			Vitality:      model.VitalityLive,
+			WorkspaceID:   "ws_decay",
+			SupportingIDs: []string{"en_fresh"},
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		},
+	} {
+		if err := store.SaveThread(thread); err != nil {
+			t.Fatalf("SaveThread() error = %v", err)
+		}
 	}
 
 	return root
