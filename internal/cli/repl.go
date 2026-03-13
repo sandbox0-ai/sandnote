@@ -301,6 +301,9 @@ func replCheckpoint(out io.Writer, store *fsstore.Store, state *replState, paylo
 		thread.ReentryAnchor = value
 	}
 	state.pendingCheckpointContext = strings.TrimSpace(payload)
+	if err := validateCheckpointResult(thread); err != nil {
+		return err
+	}
 	thread.UpdatedAt = nowUTC()
 	if err := store.SaveThread(thread); err != nil {
 		return err

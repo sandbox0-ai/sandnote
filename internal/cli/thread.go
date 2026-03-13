@@ -509,6 +509,9 @@ func newThreadCheckpointCommand(opts *rootOptions) *cobra.Command {
 			if checkpointOpts.reentryAnchor != "" {
 				thread.ReentryAnchor = checkpointOpts.reentryAnchor
 			}
+			if err := validateCheckpointResult(thread); err != nil {
+				return err
+			}
 			thread.UpdatedAt = time.Now().UTC()
 
 			if err := store.SaveThread(thread); err != nil {
@@ -684,4 +687,22 @@ func validVitalityFilter(value string) bool {
 		string(model.VitalityDormant),
 		string(model.VitalitySettled),
 	}, value)
+}
+
+func validateCheckpointResult(thread model.Thread) error {
+	if thread.Vitality != model.VitalityLive {
+		return nil
+	}
+
+	missing := make([]string, 0, 2)
+	if strings.TrimSpace(thread.OpenEdge) == "" {
+		missing = append(missing, "open edge")
+	}
+	if strings.TrimSpace(thread.ReentryAnchor) == "" {
+		missing = append(missing, "re-entry anchor")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("live thread checkpoints must leave a clear %s", joinCSV(missing))
+	}
+	return nil
 }
