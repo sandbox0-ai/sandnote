@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/sandbox0-ai/sandnote/internal/model"
 )
@@ -61,6 +62,18 @@ func (s *Store) LoadEntry(id string) (model.Entry, error) {
 	return entry, err
 }
 
+func (s *Store) LoadEntries(ids []string) ([]model.Entry, error) {
+	entries := make([]model.Entry, 0, len(ids))
+	for _, id := range ids {
+		entry, err := s.LoadEntry(id)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
 func (s *Store) SaveThread(thread model.Thread) error {
 	if err := thread.Validate(); err != nil {
 		return err
@@ -72,6 +85,27 @@ func (s *Store) LoadThread(id string) (model.Thread, error) {
 	var thread model.Thread
 	err := s.load("threads", id, &thread)
 	return thread, err
+}
+
+func (s *Store) ListThreads() ([]model.Thread, error) {
+	files, err := s.listObjectFiles("threads")
+	if err != nil {
+		return nil, err
+	}
+
+	threads := make([]model.Thread, 0, len(files))
+	for _, file := range files {
+		var thread model.Thread
+		if err := s.loadFile(file, &thread); err != nil {
+			return nil, err
+		}
+		threads = append(threads, thread)
+	}
+
+	sort.Slice(threads, func(i, j int) bool {
+		return threads[i].ID < threads[j].ID
+	})
+	return threads, nil
 }
 
 func (s *Store) SaveWorkspace(workspace model.Workspace) error {
@@ -111,18 +145,35 @@ func (s *Store) load(kind, id string, target any) error {
 	if !s.Initialized() {
 		return errors.New("store is not initialized")
 	}
-	data, err := os.ReadFile(s.objectPath(kind, id))
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(data, target); err != nil {
-		return fmt.Errorf("decode %s %q: %w", kind, id, err)
-	}
-	return nil
+	return s.loadFile(s.objectPath(kind, id), target)
 }
 
 func (s *Store) objectPath(kind, id string) string {
 	return filepath.Join(s.root, kind, id+".json")
+}
+
+func (s *Store) listObjectFiles(kind string) ([]string, error) {
+	if !s.Initialized() {
+		return nil, errors.New("store is not initialized")
+	}
+	pattern := filepath.Join(s.root, kind, "*.json")
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("glob %s: %w", kind, err)
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+func (s *Store) loadFile(path string, target any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, target); err != nil {
+		return fmt.Errorf("decode %s: %w", path, err)
+	}
+	return nil
 }
 
 func writeJSON(path string, value any) error {
