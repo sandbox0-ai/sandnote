@@ -330,6 +330,14 @@ func replTransition(out io.Writer, store *fsstore.Store, state *replState, vital
 	if err := store.SaveThread(thread); err != nil {
 		return err
 	}
+	if err := alignActiveSelectionAfterTransition(store, thread); err != nil {
+		return err
+	}
+	refreshedState, err := loadREPLState(store)
+	if err != nil {
+		return err
+	}
+	*state = *refreshedState
 	if err := saveREPLState(store, state); err != nil {
 		return err
 	}

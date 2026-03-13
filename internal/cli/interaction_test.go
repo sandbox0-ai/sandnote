@@ -79,6 +79,73 @@ func TestWorkspaceFocusAttachesThread(t *testing.T) {
 	}
 }
 
+func TestThreadTransitionClearsFocusWhenNoLiveReplacementExists(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "workspace", "focus", "ws_1", "th_1")
+	executeCLI(t, root, "workspace", "use", "ws_1")
+	executeCLI(t, root, "thread", "transition", "th_1", "--to", "dormant")
+
+	store := fsstore.New(root)
+	workspace, err := store.LoadWorkspace("ws_1")
+	if err != nil {
+		t.Fatalf("LoadWorkspace() error = %v", err)
+	}
+	if workspace.FocusThreadID != "" {
+		t.Fatalf("expected workspace focus cleared: %+v", workspace)
+	}
+	session, err := store.LoadREPLSession()
+	if err != nil {
+		t.Fatalf("LoadREPLSession() error = %v", err)
+	}
+	if session.FocusThread != "" || session.CurrentWorkspace != "ws_1" {
+		t.Fatalf("unexpected session after clearing focus: %+v", session)
+	}
+}
+
+func TestThreadTransitionRetargetsFocusToAnotherLiveThread(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	store := fsstore.New(root)
+	now := nowUTC()
+	other := model.Thread{
+		ID:            "th_2",
+		Question:      "How should auth work continue next?",
+		CurrentBelief: "keep a second live thread available",
+		OpenEdge:      "promote a replacement focus",
+		ReentryAnchor: "en_1",
+		Vitality:      model.VitalityLive,
+		WorkspaceID:   "ws_1",
+		SupportingIDs: []string{"en_1"},
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := store.SaveThread(other); err != nil {
+		t.Fatalf("SaveThread() error = %v", err)
+	}
+
+	executeCLI(t, root, "workspace", "focus", "ws_1", "th_1")
+	executeCLI(t, root, "workspace", "use", "ws_1")
+	executeCLI(t, root, "thread", "transition", "th_1", "--to", "dormant")
+
+	workspace, err := store.LoadWorkspace("ws_1")
+	if err != nil {
+		t.Fatalf("LoadWorkspace() error = %v", err)
+	}
+	if workspace.FocusThreadID != "th_2" {
+		t.Fatalf("expected workspace focus retargeted to th_2: %+v", workspace)
+	}
+	session, err := store.LoadREPLSession()
+	if err != nil {
+		t.Fatalf("LoadREPLSession() error = %v", err)
+	}
+	if session.FocusThread != "th_2" || session.CurrentWorkspace != "ws_1" {
+		t.Fatalf("unexpected session after retargeting focus: %+v", session)
+	}
+}
+
 func TestWorkspaceUsePersistsActiveSelection(t *testing.T) {
 	t.Parallel()
 
@@ -230,11 +297,13 @@ func TestREPLMaintainsWorkspaceAndThreadState(t *testing.T) {
 		"supporting entries:",
 		"vitality: dormant",
 		"workspace: ws_1",
-		"focus thread: th_1",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("repl output missing %q:\n%s", want, text)
 		}
+	}
+	if strings.Contains(text, "focus thread: th_1") {
+		t.Fatalf("repl status should not keep a dormant thread focused:\n%s", text)
 	}
 
 	thread, err := store.LoadThread("th_1")
