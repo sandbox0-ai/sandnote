@@ -27,6 +27,43 @@ func TestEntryCreateAndRevise(t *testing.T) {
 	}
 }
 
+func TestEntryLinkAddsRelatedContextWithoutDuplicates(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	output := executeCLI(t, root, "entry", "link", "en_1", "th_1", "tp_1", "th_1", "--json")
+
+	var got model.Entry
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got.RelatedContext) != 2 || !contains(got.RelatedContext, "th_1") || !contains(got.RelatedContext, "tp_1") {
+		t.Fatalf("unexpected related context after link: %+v", got)
+	}
+
+	store := fsstore.New(root)
+	entry, err := store.LoadEntry("en_1")
+	if err != nil {
+		t.Fatalf("LoadEntry() error = %v", err)
+	}
+	if len(entry.RelatedContext) != 2 {
+		t.Fatalf("expected related context persisted without duplicates: %+v", entry)
+	}
+}
+
+func TestEntryShowDisplaysRelatedContext(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "entry", "link", "en_1", "th_1", "tp_1")
+	output := executeCLI(t, root, "entry", "show", "en_1")
+	text := output.String()
+
+	if !strings.Contains(text, "related: th_1, tp_1") {
+		t.Fatalf("expected related context in entry show output:\n%s", text)
+	}
+}
+
 func TestWorkspaceFocusAttachesThread(t *testing.T) {
 	t.Parallel()
 
