@@ -64,6 +64,70 @@ func TestThreadInspectJSONIncludesSupportingEntries(t *testing.T) {
 	}
 }
 
+func TestThreadEntriesJSONListsSupportingEntries(t *testing.T) {
+	t.Parallel()
+
+	root := seedThreadStore(t)
+	output := executeCLI(t, root, "thread", "entries", "th_123", "--json")
+
+	var got []model.Entry
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got) != 2 || got[0].ID != "en_anchor" {
+		t.Fatalf("unexpected entries output: %+v", got)
+	}
+}
+
+func TestThreadAttachAddsSupportingEntry(t *testing.T) {
+	t.Parallel()
+
+	root := seedThreadStore(t)
+	executeCLI(t, root, "entry", "create", "--id", "en_new", "--subject", "new support", "--meaning", "new supporting material")
+	output := executeCLI(t, root, "thread", "attach", "th_123", "en_new", "--json")
+
+	var got threadInspectView
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !contains(got.Thread.SupportingIDs, "en_new") {
+		t.Fatalf("expected new supporting entry attached: %+v", got)
+	}
+
+	store := fsstore.New(root)
+	thread, err := store.LoadThread("th_123")
+	if err != nil {
+		t.Fatalf("LoadThread() error = %v", err)
+	}
+	if !contains(thread.SupportingIDs, "en_new") {
+		t.Fatalf("thread not persisted with attached entry: %+v", thread)
+	}
+}
+
+func TestThreadDetachRemovesSupportingEntry(t *testing.T) {
+	t.Parallel()
+
+	root := seedThreadStore(t)
+	output := executeCLI(t, root, "thread", "detach", "th_123", "en_support_2", "--json")
+
+	var got threadInspectView
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if contains(got.Thread.SupportingIDs, "en_support_2") {
+		t.Fatalf("expected entry detached from thread: %+v", got)
+	}
+
+	store := fsstore.New(root)
+	thread, err := store.LoadThread("th_123")
+	if err != nil {
+		t.Fatalf("LoadThread() error = %v", err)
+	}
+	if contains(thread.SupportingIDs, "en_support_2") {
+		t.Fatalf("thread still contains detached entry: %+v", thread)
+	}
+}
+
 func TestThreadCheckpointUpdatesContinuityState(t *testing.T) {
 	t.Parallel()
 
