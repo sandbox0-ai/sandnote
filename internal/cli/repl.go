@@ -169,6 +169,10 @@ func replWorkspace(out io.Writer, store *fsstore.Store, state *replState, args [
 		if err != nil {
 			return err
 		}
+		workspace, err = withDerivedWorkspaceMembership(store, workspace)
+		if err != nil {
+			return err
+		}
 		state.currentWorkspace = workspace.ID
 		state.focusThread = workspace.FocusThreadID
 		if err := saveREPLState(store, state); err != nil {
@@ -181,6 +185,10 @@ func replWorkspace(out io.Writer, store *fsstore.Store, state *replState, args [
 			return fmt.Errorf("no workspace selected")
 		}
 		workspace, err := store.LoadWorkspace(state.currentWorkspace)
+		if err != nil {
+			return err
+		}
+		workspace, err = withDerivedWorkspaceMembership(store, workspace)
 		if err != nil {
 			return err
 		}
@@ -205,9 +213,7 @@ func replThread(out io.Writer, store *fsstore.Store, state *replState, args []st
 			return err
 		}
 		state.focusThread = thread.ID
-		if thread.WorkspaceID != "" {
-			state.currentWorkspace = thread.WorkspaceID
-		}
+		state.currentWorkspace = thread.WorkspaceID
 		state.pendingCheckpointContext = ""
 		if err := saveREPLState(store, state); err != nil {
 			return err
@@ -245,10 +251,8 @@ func replResume(out io.Writer, store *fsstore.Store, state *replState) error {
 			return frontierErr
 		}
 		state.focusThread = thread.ID
-		if thread.WorkspaceID != "" {
-			state.currentWorkspace = thread.WorkspaceID
-		}
 	}
+	state.currentWorkspace = thread.WorkspaceID
 	state.inspectionScope = []string{thread.ReentryAnchor}
 	if err := saveREPLState(store, state); err != nil {
 		return err

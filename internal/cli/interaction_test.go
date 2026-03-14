@@ -182,6 +182,41 @@ func TestWorkspaceFocusAttachesThread(t *testing.T) {
 	}
 }
 
+func TestThreadCreateWithWorkspaceKeepsWorkspaceShowAndThreadsConsistent(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "workspace", "create", "--id", "ws_auth", "--name", "task/auth")
+	executeCLI(t, root, "thread", "create", "--id", "th_auth", "--question", "How should auth work continue?", "--workspace", "ws_auth")
+
+	showOutput := executeCLI(t, root, "workspace", "show", "ws_auth", "--json")
+	var workspace model.Workspace
+	if err := json.Unmarshal(showOutput.Bytes(), &workspace); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !contains(workspace.ThreadIDs, "th_auth") {
+		t.Fatalf("expected workspace show to include derived thread membership: %+v", workspace)
+	}
+
+	threadsOutput := executeCLI(t, root, "workspace", "threads", "ws_auth", "--json")
+	var threads []threadListItem
+	if err := json.Unmarshal(threadsOutput.Bytes(), &threads); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(threads) != 1 || threads[0].ID != "th_auth" {
+		t.Fatalf("expected workspace threads to match workspace show: %+v", threads)
+	}
+
+	store := fsstore.New(root)
+	persisted, err := store.LoadWorkspace("ws_auth")
+	if err != nil {
+		t.Fatalf("LoadWorkspace() error = %v", err)
+	}
+	if !contains(persisted.ThreadIDs, "th_auth") {
+		t.Fatalf("expected persisted workspace membership to stay aligned: %+v", persisted)
+	}
+}
+
 func TestWorkspaceAttachAssignsMembershipWithoutChangingFocus(t *testing.T) {
 	t.Parallel()
 
@@ -401,6 +436,62 @@ func TestThreadFocusPersistsActiveSelection(t *testing.T) {
 	}
 	if session.CurrentWorkspace != "ws_1" || session.FocusThread != "th_1" {
 		t.Fatalf("unexpected session after thread focus: %+v", session)
+	}
+}
+
+func TestThreadFocusClearsStaleWorkspaceWhenThreadIsUnscoped(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	store := fsstore.New(root)
+	now := nowUTC()
+	free := model.Thread{
+		ID:        "th_free",
+		Question:  "What should continue without workspace context?",
+		Vitality:  model.VitalityLive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := store.SaveThread(free); err != nil {
+		t.Fatalf("SaveThread() error = %v", err)
+	}
+
+	executeCLI(t, root, "workspace", "use", "ws_1")
+	executeCLI(t, root, "thread", "focus", "th_free")
+
+	session, err := store.LoadREPLSession()
+	if err != nil {
+		t.Fatalf("LoadREPLSession() error = %v", err)
+	}
+	if session.CurrentWorkspace != "" || session.FocusThread != "th_free" {
+		t.Fatalf("expected unscoped thread focus to clear stale workspace: %+v", session)
+	}
+}
+
+func TestThreadAttachAndDetachKeepsEntryRelatedContextAligned(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+
+	executeCLI(t, root, "thread", "attach", "th_1", "en_1")
+
+	store := fsstore.New(root)
+	entry, err := store.LoadEntry("en_1")
+	if err != nil {
+		t.Fatalf("LoadEntry() error = %v", err)
+	}
+	if !contains(entry.RelatedContext, "th_1") {
+		t.Fatalf("expected thread attach to update entry related context: %+v", entry)
+	}
+
+	executeCLI(t, root, "thread", "detach", "th_1", "en_1")
+
+	entry, err = store.LoadEntry("en_1")
+	if err != nil {
+		t.Fatalf("LoadEntry() error = %v", err)
+	}
+	if contains(entry.RelatedContext, "th_1") {
+		t.Fatalf("expected thread detach to remove entry related context: %+v", entry)
 	}
 }
 
