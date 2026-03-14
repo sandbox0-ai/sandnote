@@ -22,9 +22,10 @@ func newTopicCommand(opts *rootOptions) *cobra.Command {
 		newTopicShowCommand(opts),
 		newTopicListCommand(opts),
 		newTopicOrientCommand(opts),
+		newTopicEntriesCommand(opts),
+		newTopicThreadsCommand(opts),
 		newTopicPromoteCommand(opts),
 	)
-	addNotImplementedSubcommands(cmd, "entries", "threads")
 	return cmd
 }
 
@@ -239,6 +240,90 @@ func newTopicPromoteCommand(opts *rootOptions) *cobra.Command {
 	cmd.Flags().StringSliceVar(&entryIDs, "entry", nil, "entries to attach to the topic")
 	cmd.Flags().StringVar(&orientation, "orientation", "", "update topic orientation during promotion")
 	cmd.Flags().BoolVar(&includeSupporting, "include-supporting", false, "include the thread's supporting entries")
+	cmd.Flags().BoolVar(&topicOpts.json, "json", false, "output JSON")
+	return cmd
+}
+
+func newTopicEntriesCommand(opts *rootOptions) *cobra.Command {
+	topicOpts := &topicOptions{}
+	cmd := &cobra.Command{
+		Use:   "entries <id>",
+		Short: "List the durable entry surfaces attached to a topic",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			topic, err := store.LoadTopic(args[0])
+			if err != nil {
+				return err
+			}
+			entries, err := store.LoadEntries(topic.EntryIDs)
+			if err != nil {
+				return err
+			}
+			if topicOpts.json {
+				return output(cmd, true, entries, "")
+			}
+			if len(entries) == 0 {
+				return output(cmd, false, nil, "no entries\n")
+			}
+			text := ""
+			for _, entry := range entries {
+				text += formatEntry(entry) + "\n"
+			}
+			return output(cmd, false, nil, text)
+		},
+	}
+	cmd.Flags().BoolVar(&topicOpts.json, "json", false, "output JSON")
+	return cmd
+}
+
+func newTopicThreadsCommand(opts *rootOptions) *cobra.Command {
+	topicOpts := &topicOptions{}
+	cmd := &cobra.Command{
+		Use:   "threads <id>",
+		Short: "List the threads attached to a topic surface",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			topic, err := store.LoadTopic(args[0])
+			if err != nil {
+				return err
+			}
+			items := make([]threadListItem, 0, len(topic.ThreadIDs))
+			for _, threadID := range topic.ThreadIDs {
+				thread, err := store.LoadThread(threadID)
+				if err != nil {
+					return err
+				}
+				items = append(items, threadListItem{
+					ID:            thread.ID,
+					Question:      thread.Question,
+					Vitality:      thread.Vitality,
+					WorkspaceID:   thread.WorkspaceID,
+					UpdatedAt:     thread.UpdatedAt,
+					CurrentBelief: thread.CurrentBelief,
+					OpenEdge:      thread.OpenEdge,
+				})
+			}
+			if topicOpts.json {
+				return output(cmd, true, items, "")
+			}
+			if len(items) == 0 {
+				return output(cmd, false, nil, "no threads\n")
+			}
+			text := ""
+			for _, item := range items {
+				text += formatThreadListItem(item) + "\n"
+			}
+			return output(cmd, false, nil, text)
+		},
+	}
 	cmd.Flags().BoolVar(&topicOpts.json, "json", false, "output JSON")
 	return cmd
 }
