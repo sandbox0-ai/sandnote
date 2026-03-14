@@ -43,6 +43,60 @@ func (e Entry) Validate() error {
 	return nil
 }
 
+type ArtifactIngestMode string
+
+const (
+	ArtifactReference ArtifactIngestMode = "reference"
+	ArtifactSnapshot  ArtifactIngestMode = "snapshot"
+)
+
+func (m ArtifactIngestMode) Validate() error {
+	switch m {
+	case ArtifactReference, ArtifactSnapshot:
+		return nil
+	default:
+		return fmt.Errorf("invalid artifact ingest mode %q", m)
+	}
+}
+
+type Artifact struct {
+	ID            string             `json:"id"`
+	Kind          string             `json:"kind"`
+	SourceRef     string             `json:"source_ref"`
+	IngestMode    ArtifactIngestMode `json:"ingest_mode"`
+	ContentDigest string             `json:"content_digest,omitempty"`
+	Body          string             `json:"body,omitempty"`
+	Locator       *ArtifactLocator   `json:"locator,omitempty"`
+	CreatedAt     time.Time          `json:"created_at"`
+	UpdatedAt     time.Time          `json:"updated_at"`
+}
+
+func (a Artifact) Validate() error {
+	if a.ID == "" {
+		return errors.New("artifact id is required")
+	}
+	if a.Kind == "" {
+		return errors.New("artifact kind is required")
+	}
+	if a.SourceRef == "" {
+		return errors.New("artifact source ref is required")
+	}
+	return a.IngestMode.Validate()
+}
+
+type ArtifactLocator struct {
+	SearchRoots     []string      `json:"search_roots,omitempty"`
+	SizeBytes       int64         `json:"size_bytes,omitempty"`
+	ModTimeUnixNano int64         `json:"mod_time_unix_nano,omitempty"`
+	FileIdentity    *FileIdentity `json:"file_identity,omitempty"`
+}
+
+type FileIdentity struct {
+	Kind     string `json:"kind"`
+	DeviceID uint64 `json:"device_id,omitempty"`
+	ObjectID uint64 `json:"object_id,omitempty"`
+}
+
 type Thread struct {
 	ID            string        `json:"id"`
 	Question      string        `json:"question"`

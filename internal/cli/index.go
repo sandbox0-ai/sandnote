@@ -34,11 +34,12 @@ func newIndexRebuildCommand(opts *rootOptions) *cobra.Command {
 			}
 			fmt.Fprintf(
 				cmd.OutOrStdout(),
-				"rebuilt index at %s with %d threads, %d workspaces, %d topics\n",
+				"rebuilt index at %s with %d threads, %d workspaces, %d topics, %d artifacts\n",
 				store.Root(),
 				len(derived.Threads),
 				len(derived.Workspaces),
 				len(derived.Topics),
+				len(derived.Artifacts),
 			)
 			return nil
 		},

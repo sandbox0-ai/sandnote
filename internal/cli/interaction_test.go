@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,6 +11,141 @@ import (
 	"github.com/sandbox0-ai/sandnote/internal/model"
 	"github.com/sandbox0-ai/sandnote/internal/store/fsstore"
 )
+
+func TestArtifactImportReferenceStoresMetadataAndLinksEntry(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	sourcePath := filepath.Join(t.TempDir(), "diagd-spec.md")
+	if err := os.WriteFile(sourcePath, []byte("# diagd\ntrusted capability broker\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	output := executeCLI(t, root, "artifact", "import", sourcePath, "--id", "art_diagd", "--entry", "en_1", "--json")
+
+	var got model.Artifact
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got.IngestMode != model.ArtifactReference || got.Kind != "markdown" {
+		t.Fatalf("unexpected imported artifact: %+v", got)
+	}
+	if got.Body != "" || got.ContentDigest == "" {
+		t.Fatalf("expected reference artifact metadata without body: %+v", got)
+	}
+	if got.Locator == nil || len(got.Locator.SearchRoots) == 0 {
+		t.Fatalf("expected reference artifact locator metadata: %+v", got)
+	}
+
+	store := fsstore.New(root)
+	entry, err := store.LoadEntry("en_1")
+	if err != nil {
+		t.Fatalf("LoadEntry() error = %v", err)
+	}
+	if !contains(entry.RelatedContext, "art_diagd") {
+		t.Fatalf("expected artifact linked into entry related context: %+v", entry)
+	}
+}
+
+func TestArtifactImportSnapshotStoresBody(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	sourcePath := filepath.Join(t.TempDir(), "notes.txt")
+	body := "stop without losing your place\n"
+	if err := os.WriteFile(sourcePath, []byte(body), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	output := executeCLI(t, root, "artifact", "import", sourcePath, "--id", "art_notes", "--mode", "snapshot", "--json")
+
+	var got model.Artifact
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got.IngestMode != model.ArtifactSnapshot || got.Body != body {
+		t.Fatalf("unexpected snapshot artifact: %+v", got)
+	}
+
+	showOutput := executeCLI(t, root, "artifact", "show", "art_notes")
+	if !strings.Contains(showOutput.String(), "body:\n"+body) {
+		t.Fatalf("expected snapshot body in show output:\n%s", showOutput.String())
+	}
+}
+
+func TestArtifactListFiltersByQuery(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	firstPath := filepath.Join(t.TempDir(), "diagd-spec.md")
+	secondPath := filepath.Join(t.TempDir(), "billing.json")
+	if err := os.WriteFile(firstPath, []byte("# diagd\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(firstPath) error = %v", err)
+	}
+	if err := os.WriteFile(secondPath, []byte("{\"ok\":true}\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(secondPath) error = %v", err)
+	}
+
+	executeCLI(t, root, "artifact", "import", firstPath, "--id", "art_diagd")
+	executeCLI(t, root, "artifact", "import", secondPath, "--id", "art_billing", "--kind", "json")
+
+	output := executeCLI(t, root, "artifact", "list", "--query", "diagd", "--json")
+
+	var got []artifactListItem
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "art_diagd" {
+		t.Fatalf("unexpected filtered artifacts: %+v", got)
+	}
+}
+
+func TestArtifactReferenceRelocatesAfterMove(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	root := filepath.Join(workspace, ".sandnote")
+	executeCLI(t, root, "init")
+
+	sourceDir := filepath.Join(workspace, "docs")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(sourceDir) error = %v", err)
+	}
+	oldPath := filepath.Join(sourceDir, "diagd-spec.md")
+	if err := os.WriteFile(oldPath, []byte("# diagd\ntrusted capability broker\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(oldPath) error = %v", err)
+	}
+
+	executeCLI(t, root, "artifact", "import", oldPath, "--id", "art_diagd", "--mode", "reference")
+
+	newDir := filepath.Join(workspace, "archive")
+	if err := os.MkdirAll(newDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(newDir) error = %v", err)
+	}
+	newPath := filepath.Join(newDir, "diagd-spec-renamed.md")
+	if err := os.Rename(oldPath, newPath); err != nil {
+		t.Fatalf("Rename() error = %v", err)
+	}
+
+	output := executeCLI(t, root, "artifact", "show", "art_diagd", "--json")
+
+	var got model.Artifact
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got.SourceRef != newPath {
+		t.Fatalf("expected relocated artifact source_ref %q, got %+v", newPath, got)
+	}
+
+	store := fsstore.New(root)
+	persisted, err := store.LoadArtifact("art_diagd")
+	if err != nil {
+		t.Fatalf("LoadArtifact() error = %v", err)
+	}
+	if persisted.SourceRef != newPath {
+		t.Fatalf("expected relocated artifact persisted with new path: %+v", persisted)
+	}
+}
 
 func TestEntryCreateAndRevise(t *testing.T) {
 	t.Parallel()

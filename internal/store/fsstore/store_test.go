@@ -25,6 +25,7 @@ func TestInitCreatesLayout(t *testing.T) {
 
 	for _, path := range []string{
 		filepath.Join(store.Root(), "entries"),
+		filepath.Join(store.Root(), "artifacts"),
 		filepath.Join(store.Root(), "threads"),
 		filepath.Join(store.Root(), "workspaces"),
 		filepath.Join(store.Root(), "topics"),
@@ -67,6 +68,57 @@ func TestSaveLoadEntryRoundTrip(t *testing.T) {
 
 	if got.ID != entry.ID || got.Subject != entry.Subject || got.Meaning != entry.Meaning {
 		t.Fatalf("loaded entry mismatch: got %+v want %+v", got, entry)
+	}
+}
+
+func TestSaveLoadArtifactRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	store := New(filepath.Join(root, ".sandnote"))
+	if err := store.Init(); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	now := time.Now().UTC().Round(time.Second)
+	artifact := model.Artifact{
+		ID:            "art_123",
+		Kind:          "markdown",
+		SourceRef:     "/tmp/spec.md",
+		IngestMode:    model.ArtifactSnapshot,
+		ContentDigest: "sha256:abc123",
+		Body:          "# spec\n",
+		Locator: &model.ArtifactLocator{
+			SearchRoots:     []string{"/tmp"},
+			SizeBytes:       7,
+			ModTimeUnixNano: now.UnixNano(),
+			FileIdentity: &model.FileIdentity{
+				Kind:     "posix_inode",
+				DeviceID: 1,
+				ObjectID: 2,
+			},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := store.SaveArtifact(artifact); err != nil {
+		t.Fatalf("SaveArtifact() error = %v", err)
+	}
+
+	got, err := store.LoadArtifact(artifact.ID)
+	if err != nil {
+		t.Fatalf("LoadArtifact() error = %v", err)
+	}
+
+	if got.ID != artifact.ID || got.Kind != artifact.Kind || got.IngestMode != artifact.IngestMode {
+		t.Fatalf("loaded artifact mismatch: got %+v want %+v", got, artifact)
+	}
+	if got.ContentDigest != artifact.ContentDigest || got.Body != artifact.Body {
+		t.Fatalf("loaded artifact content mismatch: got %+v want %+v", got, artifact)
+	}
+	if got.Locator == nil || got.Locator.FileIdentity == nil || got.Locator.FileIdentity.ObjectID != 2 {
+		t.Fatalf("loaded artifact locator mismatch: got %+v want %+v", got, artifact)
 	}
 }
 

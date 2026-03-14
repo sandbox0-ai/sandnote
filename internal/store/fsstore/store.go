@@ -36,6 +36,7 @@ type DerivedIndex struct {
 	Threads     []DerivedThreadRecord    `json:"threads,omitempty"`
 	Workspaces  []DerivedWorkspaceRecord `json:"workspaces,omitempty"`
 	Topics      []DerivedTopicRecord     `json:"topics,omitempty"`
+	Artifacts   []DerivedArtifactRecord  `json:"artifacts,omitempty"`
 }
 
 type DerivedThreadRecord struct {
@@ -69,6 +70,14 @@ type DerivedTopicRecord struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type DerivedArtifactRecord struct {
+	ID         string                   `json:"id"`
+	Kind       string                   `json:"kind"`
+	SourceRef  string                   `json:"source_ref"`
+	IngestMode model.ArtifactIngestMode `json:"ingest_mode"`
+	UpdatedAt  time.Time                `json:"updated_at"`
+}
+
 func New(root string) *Store {
 	return &Store{root: root}
 }
@@ -84,7 +93,7 @@ func (s *Store) Init() error {
 	if err := os.MkdirAll(s.root, 0o755); err != nil {
 		return fmt.Errorf("create store root: %w", err)
 	}
-	for _, dir := range []string{"entries", "threads", "workspaces", "topics"} {
+	for _, dir := range []string{"entries", "threads", "workspaces", "topics", "artifacts"} {
 		if err := os.MkdirAll(filepath.Join(s.root, dir), 0o755); err != nil {
 			return fmt.Errorf("create %s directory: %w", dir, err)
 		}
@@ -150,6 +159,40 @@ func (s *Store) SaveEntry(entry model.Entry) error {
 		return err
 	}
 	return s.save("entries", entry.ID, entry)
+}
+
+func (s *Store) SaveArtifact(artifact model.Artifact) error {
+	if err := artifact.Validate(); err != nil {
+		return err
+	}
+	return s.save("artifacts", artifact.ID, artifact)
+}
+
+func (s *Store) LoadArtifact(id string) (model.Artifact, error) {
+	var artifact model.Artifact
+	err := s.load("artifacts", id, &artifact)
+	return artifact, err
+}
+
+func (s *Store) ListArtifacts() ([]model.Artifact, error) {
+	files, err := s.listObjectFiles("artifacts")
+	if err != nil {
+		return nil, err
+	}
+
+	artifacts := make([]model.Artifact, 0, len(files))
+	for _, file := range files {
+		var artifact model.Artifact
+		if err := s.loadFile(file, &artifact); err != nil {
+			return nil, err
+		}
+		artifacts = append(artifacts, artifact)
+	}
+
+	sort.Slice(artifacts, func(i, j int) bool {
+		return artifacts[i].ID < artifacts[j].ID
+	})
+	return artifacts, nil
 }
 
 func (s *Store) LoadEntry(id string) (model.Entry, error) {

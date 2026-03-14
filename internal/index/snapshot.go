@@ -9,6 +9,10 @@ import (
 )
 
 func Build(store *fsstore.Store) (fsstore.DerivedIndex, error) {
+	artifacts, err := store.ListArtifacts()
+	if err != nil {
+		return fsstore.DerivedIndex{}, err
+	}
 	threads, err := store.ListThreads()
 	if err != nil {
 		return fsstore.DerivedIndex{}, err
@@ -78,10 +82,22 @@ func Build(store *fsstore.Store) (fsstore.DerivedIndex, error) {
 		})
 	}
 
+	derivedArtifacts := make([]fsstore.DerivedArtifactRecord, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		derivedArtifacts = append(derivedArtifacts, fsstore.DerivedArtifactRecord{
+			ID:         artifact.ID,
+			Kind:       artifact.Kind,
+			SourceRef:  artifact.SourceRef,
+			IngestMode: artifact.IngestMode,
+			UpdatedAt:  artifact.UpdatedAt,
+		})
+	}
+
 	return fsstore.DerivedIndex{
 		GeneratedAt: time.Now().UTC(),
 		Threads:     derivedThreads,
 		Workspaces:  derivedWorkspaces,
 		Topics:      derivedTopics,
+		Artifacts:   derivedArtifacts,
 	}, nil
 }

@@ -46,6 +46,14 @@ type entryListItem struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type artifactListItem struct {
+	ID         string                   `json:"id"`
+	Kind       string                   `json:"kind"`
+	SourceRef  string                   `json:"source_ref"`
+	IngestMode model.ArtifactIngestMode `json:"ingest_mode"`
+	UpdatedAt  time.Time                `json:"updated_at"`
+}
+
 func formatEntry(entry model.Entry) string {
 	return joinLines(
 		"entry "+entry.ID,
@@ -60,6 +68,31 @@ func formatEntryListItem(item entryListItem) string {
 	parts := []string{item.ID, item.Subject}
 	if item.State != "" {
 		parts = append(parts, "state="+item.State)
+	}
+	return strings.Join(parts, " ")
+}
+
+func formatArtifact(artifact model.Artifact) string {
+	lines := []string{
+		"artifact " + artifact.ID,
+		"kind: " + artifact.Kind,
+		"mode: " + string(artifact.IngestMode),
+		"source: " + artifact.SourceRef,
+	}
+	if artifact.ContentDigest != "" {
+		lines = append(lines, "digest: "+artifact.ContentDigest)
+	}
+	if artifact.Body != "" {
+		lines = append(lines, "body:")
+		lines = append(lines, artifact.Body)
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func formatArtifactListItem(item artifactListItem) string {
+	parts := []string{item.ID, item.Kind, "mode=" + string(item.IngestMode)}
+	if item.SourceRef != "" {
+		parts = append(parts, item.SourceRef)
 	}
 	return strings.Join(parts, " ")
 }

@@ -17,8 +17,16 @@ func TestRootAndKeyCommandsExposeWorkflowExamples(t *testing.T) {
 			args: []string{"--help"},
 			want: []string{
 				"sandnote init",
+				"sandnote artifact import ./spec.md --id art_spec --mode reference",
 				"sandnote resume",
 				"sandnote repl",
+			},
+		},
+		{
+			args: []string{"artifact", "import", "--help"},
+			want: []string{
+				"sandnote artifact import ./diagd-spec.md --id art_diagd --mode reference",
+				"--entry en_auth",
 			},
 		},
 		{
