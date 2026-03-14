@@ -22,6 +22,10 @@ func newREPLCommand(opts *rootOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "repl",
 		Short: "Start the stateful working console",
+		Example: joinLines(
+			"  sandnote repl",
+			"  sandnote --root /tmp/demo/.sandnote repl",
+		),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			store, err := requireStore(opts.storeRoot)
 			if err != nil {

@@ -1,69 +1,128 @@
 # sandnote
 
-**An Obsidian-like, CLI-first notebook engine backed by the filesystem.**
+**A CLI-first notebook engine for agents, backed by the filesystem.**
 
-Sandnote is a CLI-first, filesystem-backed, headless notebook engine for agents.
+Sandnote is a resumability-first notebook for agents.
 
 It is not agent memory. It is the agent's notebook.
 
-Its core purpose is to preserve the continuity of thought.
+Its job is to preserve the continuity of thought so interrupted work can resume without starting over.
 
 ## Product Promise
 
 **Come back to unfinished thought without starting over.**
 
-For v0, the more operational framing is:
+For v0, the more operational version is:
 
-**Sandnote should help you stop without losing your place.**
-
-## What Sandnote Is
-
-Sandnote is an external thinking surface built on top of the filesystem.
-
-It should be:
-
-- resumability-first, not storage-first
-- thread-first in active work, not note-first
-- context-aware, not container-first
-- focused on re-entry value, not information volume
-
-## What Sandnote Is Not
-
-Sandnote should not be defined as:
-
-- a memory store
-- a local database with a notebook veneer
-- a full PKM suite
-- a document editor first
-- an AI wrapper that auto-generates understanding
+**Stop without losing your place.**
 
 ## Core Model
 
-A useful product model is:
-
 - `entry`: a lightweight thinking unit
 - `thread`: a continuable line of thought
-- `workspace`: the current thinking surface that gives context
-- `topic surface`: a durable re-entry surface for future work
+- `workspace`: the current thinking context
+- `topic`: a durable re-entry surface
 
-These layers should stay distinct.
+These layers stay distinct:
+
+- `entry` captures local thought
+- `thread` is the main working unit
+- `workspace` explains current relevance
+- `topic` preserves understanding worth re-entering later
 
 ## Why Filesystem-Backed
 
-Sandnote is built on the filesystem because the filesystem is the durable substrate:
+Sandnote uses the filesystem as the source of truth:
 
-- files are the source of truth
-- note content remains human-readable
-- snapshots and restores come from the underlying volume
-- derived indexes and metadata can be rebuilt
+- state is stored as plain object files
+- derived indexes are rebuildable
+- snapshots and restores can rely on the underlying volume
+- raw files remain inspectable without introducing a database as authority
 
-Direct file editing should remain possible, but raw file editing alone is not enough to provide notebook semantics.
+This keeps the notebook durable and operationally simple while still allowing higher-level notebook semantics.
 
-## V0 Center Of Gravity
+## Current V0 Surface
 
-If v0 must focus on one thing, it should focus on checkpoint quality.
+Canonical CLI:
 
-The key question is not whether a session produced more text, but whether it left behind a better edge for future continuation.
+```text
+sandnote entry ...
+sandnote thread ...
+sandnote workspace ...
+sandnote topic ...
+sandnote repl
+```
+
+Current core flows:
+
+- thread-first resume and frontier selection
+- checkpoint and vitality transitions
+- workspace focus and active selection persistence
+- topic promotion and topic re-entry reads
+- stateful REPL over persisted notebook state
+
+## Quickstart
+
+Initialize a local store:
+
+```bash
+sandnote init
+```
+
+Create a workspace, an entry, and a thread:
+
+```bash
+sandnote workspace create --id ws_auth --name task/auth
+sandnote entry create --id en_auth --subject "auth anchor" --meaning "resume auth work here"
+sandnote thread create --id th_auth --question "How should auth work continue?" --workspace ws_auth
+```
+
+Attach the entry, focus the workspace, and resume:
+
+```bash
+sandnote entry attach en_auth --thread th_auth
+sandnote workspace focus ws_auth th_auth
+sandnote workspace use ws_auth
+sandnote resume
+```
+
+Leave behind a better stopping point:
+
+```bash
+sandnote thread checkpoint th_auth \
+  --belief "auth flow is working" \
+  --open-edge "promote durable auth understanding" \
+  --next-lean "promote auth topic" \
+  --reentry-anchor en_auth
+```
+
+Promote durable understanding into a topic surface:
+
+```bash
+sandnote topic create --id tp_auth --name auth
+sandnote topic promote tp_auth --thread th_auth --include-supporting
+```
+
+Use the REPL as a stateful working console:
+
+```bash
+sandnote repl
+```
+
+Inside the REPL:
+
+```text
+workspace use ws_auth
+resume
+inspect
+checkpoint belief=auth-flow-is-working edge=promote-durable-auth-understanding lean=promote-auth-topic anchor=en_auth
+transition dormant
+exit
+```
+
+## Checkpoint Quality
+
+Sandnote v0 centers on checkpoint quality.
 
 A good checkpoint should minimally leave:
 
@@ -72,32 +131,42 @@ A good checkpoint should minimally leave:
 - a likely next lean
 - a re-entry anchor
 
-## Lifecycle
+For `live` threads, Sandnote currently enforces the minimum continuity contract:
 
-Threads should have vitality states such as:
+- `open_edge` must be clear enough to leave a real continuation point
+- `reentry_anchor` must be present so future work has a low-cost way back in
+
+## Thread Lifecycle
+
+Threads carry vitality states:
 
 - `live`
 - `dormant`
 - `settled`
 
-Promotion should remain a separate dimension from vitality:
+Promotion is separate from vitality:
 
 - vitality answers whether a thread is still alive as a line of thought
 - promotion answers whether some understanding is worth preserving as a durable topic-level re-entry point
 
-## Product Discipline
-
-Sandnote should avoid drifting into:
-
-- content management first
-- structural completeness first
-- long-lived knowledge accumulation first
-- premature AI automation first
-
-Instead, it should optimize for making interrupted thought easier to resume.
-
 ## Status
 
-Sandnote is in the product-definition stage.
+Sandnote is now in the **v0 preview hardening** stage.
 
-The current priority is to turn the product thesis into a concrete v0 semantics and CLI surface, without losing the central design goal: preserving the continuity of thought.
+The main remaining work is:
+
+- harden end-to-end notebook workflows
+- tighten the CLI contract and help/documentation
+- prepare the first preview release boundary
+
+## Non-Goals
+
+Sandnote is not trying to become:
+
+- a memory store
+- a local database with notebook branding
+- a full PKM suite
+- a document editor first
+- an AI wrapper that auto-generates understanding
+
+It should stay focused on resumability, checkpoint quality, and thread-first work.

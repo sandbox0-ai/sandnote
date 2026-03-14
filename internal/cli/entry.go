@@ -236,7 +236,12 @@ func newEntryAttachCommand(opts *rootOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "attach <id>",
 		Short: "Attach an entry to thread support context and/or topic re-entry surfaces",
-		Args:  cobra.ExactArgs(1),
+		Example: joinLines(
+			"  sandnote entry attach en_auth --thread th_auth",
+			"  sandnote entry attach en_auth --thread th_auth --topic tp_auth",
+			"  sandnote entry attach en_auth --topic tp_auth --json",
+		),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(threadIDs) == 0 && len(topicIDs) == 0 {
 				return errors.New("attach requires at least one --thread or --topic target")

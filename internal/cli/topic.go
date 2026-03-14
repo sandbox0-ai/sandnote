@@ -176,7 +176,12 @@ func newTopicPromoteCommand(opts *rootOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "promote <id>",
 		Short: "Promote durable understanding into a topic surface",
-		Args:  cobra.ExactArgs(1),
+		Example: joinLines(
+			"  sandnote topic promote tp_auth --thread th_auth",
+			"  sandnote topic promote tp_auth --thread th_auth --include-supporting",
+			"  sandnote topic promote tp_auth --entry en_auth --orientation \"Start here for auth work.\" --json",
+		),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if threadID == "" && len(entryIDs) == 0 {
 				return errors.New("promotion requires --thread or at least one --entry")

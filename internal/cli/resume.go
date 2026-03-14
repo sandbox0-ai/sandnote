@@ -23,6 +23,11 @@ func newResumeCommand(opts *rootOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "resume",
 		Short: "Resume the strongest live thread in the current work frontier",
+		Example: joinLines(
+			"  sandnote resume",
+			"  sandnote resume --workspace ws_auth",
+			"  sandnote resume --json",
+		),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			store, err := requireStore(opts.storeRoot)
 			if err != nil {

@@ -481,7 +481,11 @@ func newThreadCheckpointCommand(opts *rootOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "checkpoint <id>",
 		Short: "Leave behind a better stopping point for a thread",
-		Args:  cobra.ExactArgs(1),
+		Example: joinLines(
+			"  sandnote thread checkpoint th_auth --belief \"auth flow is working\" --open-edge \"promote durable auth understanding\" --next-lean \"promote auth topic\" --reentry-anchor en_auth",
+			"  sandnote thread checkpoint th_auth --belief \"still investigating\" --open-edge \"need a stronger anchor\" --reentry-anchor en_auth --json",
+		),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if checkpointOpts.belief == "" && checkpointOpts.openEdge == "" &&
 				checkpointOpts.nextLean == "" && checkpointOpts.reentryAnchor == "" {
