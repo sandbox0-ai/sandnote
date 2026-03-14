@@ -21,6 +21,16 @@ func NewRootCommand() *cobra.Command {
 		Short:         "CLI-first notebook engine for agents",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Example: joinLines(
+			"  sandnote init",
+			"  sandnote workspace create --id ws_auth --name task/auth",
+			"  sandnote entry create --id en_auth --subject \"auth anchor\" --meaning \"resume auth work here\"",
+			"  sandnote thread create --id th_auth --question \"How should auth work continue?\" --workspace ws_auth",
+			"  sandnote entry attach en_auth --thread th_auth",
+			"  sandnote workspace focus ws_auth th_auth",
+			"  sandnote resume",
+			"  sandnote repl",
+		),
 	}
 
 	cmd.PersistentFlags().StringVar(
@@ -56,6 +66,10 @@ func newInitCommand(opts *rootOptions) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a filesystem-backed sandnote store",
+		Example: joinLines(
+			"  sandnote init",
+			"  sandnote --root /tmp/demo/.sandnote init",
+		),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			store := fsstore.New(opts.storeRoot)
 			if err := store.Init(); err != nil {

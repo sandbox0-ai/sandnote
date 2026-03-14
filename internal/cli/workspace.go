@@ -137,7 +137,11 @@ func newWorkspaceUseCommand(opts *rootOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "use <id>",
 		Short: "Set the current workspace for canonical CLI and REPL flows",
-		Args:  cobra.ExactArgs(1),
+		Example: joinLines(
+			"  sandnote workspace use ws_auth",
+			"  sandnote workspace use ws_auth --json",
+		),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			store, err := requireStore(opts.storeRoot)
 			if err != nil {
