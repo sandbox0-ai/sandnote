@@ -80,6 +80,10 @@ func newWorkspaceShowCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err = withDerivedWorkspaceMembership(store, workspace)
+			if err != nil {
+				return err
+			}
 			return output(cmd, workspaceOpts.json, workspace, formatWorkspace(workspace))
 		},
 	}
@@ -151,6 +155,10 @@ func newWorkspaceUseCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err = withDerivedWorkspaceMembership(store, workspace)
+			if err != nil {
+				return err
+			}
 			if err := updateActiveWorkSelection(store, workspace.ID, workspace.FocusThreadID); err != nil {
 				return err
 			}
@@ -183,7 +191,7 @@ func newWorkspaceThreadsCommand(opts *rootOptions) *cobra.Command {
 
 			items := make([]threadListItem, 0)
 			for _, thread := range threads {
-				if thread.WorkspaceID != workspace.ID && !contains(workspace.ThreadIDs, thread.ID) {
+				if thread.WorkspaceID != workspace.ID {
 					continue
 				}
 				items = append(items, threadListItem{
@@ -244,16 +252,13 @@ func newWorkspaceAttachCommand(opts *rootOptions) *cobra.Command {
 				thread.UpdatedAt = now
 				threadChanged = true
 			}
-			if !contains(workspace.ThreadIDs, thread.ID) {
-				workspace.ThreadIDs = append(workspace.ThreadIDs, thread.ID)
-				workspace.UpdatedAt = now
-			}
 			if threadChanged {
 				if err := store.SaveThread(thread); err != nil {
 					return err
 				}
 			}
-			if err := store.SaveWorkspace(workspace); err != nil {
+			workspace, err = syncWorkspaceMembership(store, workspace.ID)
+			if err != nil {
 				return err
 			}
 			return output(cmd, workspaceOpts.json, workspace, formatWorkspace(workspace))
@@ -283,7 +288,7 @@ func newWorkspaceDetachCommand(opts *rootOptions) *cobra.Command {
 				return err
 			}
 
-			attached := thread.WorkspaceID == workspace.ID || contains(workspace.ThreadIDs, thread.ID)
+			attached := thread.WorkspaceID == workspace.ID
 			if !attached {
 				return errors.New("thread is not attached to this workspace")
 			}
@@ -297,13 +302,16 @@ func newWorkspaceDetachCommand(opts *rootOptions) *cobra.Command {
 				}
 			}
 
-			workspace.ThreadIDs = withoutValue(workspace.ThreadIDs, thread.ID)
 			focusCleared := workspace.FocusThreadID == thread.ID
 			if focusCleared {
 				workspace.FocusThreadID = ""
 			}
 			workspace.UpdatedAt = now
 			if err := store.SaveWorkspace(workspace); err != nil {
+				return err
+			}
+			workspace, err = syncWorkspaceMembership(store, workspace.ID)
+			if err != nil {
 				return err
 			}
 
@@ -361,11 +369,12 @@ func newWorkspaceFocusCommand(opts *rootOptions) *cobra.Command {
 				}
 			}
 			workspace.FocusThreadID = thread.ID
-			if !contains(workspace.ThreadIDs, thread.ID) {
-				workspace.ThreadIDs = append(workspace.ThreadIDs, thread.ID)
-			}
 			workspace.UpdatedAt = nowUTC()
 			if err := store.SaveWorkspace(workspace); err != nil {
+				return err
+			}
+			workspace, err = syncWorkspaceMembership(store, workspace.ID)
+			if err != nil {
 				return err
 			}
 			return output(cmd, workspaceOpts.json, workspace, formatWorkspace(workspace))

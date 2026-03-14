@@ -180,6 +180,9 @@ func newThreadCreateCommand(opts *rootOptions) *cobra.Command {
 			if err := store.SaveThread(thread); err != nil {
 				return err
 			}
+			if err := syncWorkspaceMembershipIfExists(store, thread.WorkspaceID); err != nil {
+				return err
+			}
 			return output(cmd, createOpts.json, threadShowView{
 				ID:          thread.ID,
 				Question:    thread.Question,
@@ -416,6 +419,13 @@ func newThreadAttachCommand(opts *rootOptions) *cobra.Command {
 					return err
 				}
 			}
+			if !contains(entry.RelatedContext, thread.ID) {
+				entry.RelatedContext = append(entry.RelatedContext, thread.ID)
+				entry.UpdatedAt = nowUTC()
+				if err := store.SaveEntry(entry); err != nil {
+					return err
+				}
+			}
 			entries, err := store.LoadEntries(thread.SupportingIDs)
 			if err != nil {
 				return err
@@ -448,6 +458,10 @@ func newThreadDetachCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			entry, err := store.LoadEntry(args[1])
+			if err != nil {
+				return err
+			}
 			nextSupporting := make([]string, 0, len(thread.SupportingIDs))
 			for _, id := range thread.SupportingIDs {
 				if id != args[1] {
@@ -458,6 +472,14 @@ func newThreadDetachCommand(opts *rootOptions) *cobra.Command {
 			thread.UpdatedAt = nowUTC()
 			if err := store.SaveThread(thread); err != nil {
 				return err
+			}
+			nextRelated := withoutValue(entry.RelatedContext, thread.ID)
+			if len(nextRelated) != len(entry.RelatedContext) {
+				entry.RelatedContext = nextRelated
+				entry.UpdatedAt = nowUTC()
+				if err := store.SaveEntry(entry); err != nil {
+					return err
+				}
 			}
 			entries, err := store.LoadEntries(thread.SupportingIDs)
 			if err != nil {

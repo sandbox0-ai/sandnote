@@ -14,9 +14,7 @@ func updateActiveWorkSelection(store *fsstore.Store, workspaceID, threadID strin
 	if err != nil {
 		return err
 	}
-	if workspaceID != "" {
-		state.currentWorkspace = workspaceID
-	}
+	state.currentWorkspace = workspaceID
 	state.focusThread = threadID
 	return saveREPLState(store, state)
 }
