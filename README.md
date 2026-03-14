@@ -61,6 +61,32 @@ Current core flows:
 - topic promotion and topic re-entry reads
 - stateful REPL over persisted notebook state
 
+## Install
+
+Build a local binary:
+
+```bash
+go build ./cmd/sandnote
+```
+
+Or install it into your Go bin directory:
+
+```bash
+go install ./cmd/sandnote
+```
+
+For a preview build with explicit metadata:
+
+```bash
+go build -ldflags "-X github.com/sandbox0-ai/sandnote/internal/cli.Version=v0.1.0-preview -X github.com/sandbox0-ai/sandnote/internal/cli.GitCommit=$(git rev-parse --short HEAD) -X github.com/sandbox0-ai/sandnote/internal/cli.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" ./cmd/sandnote
+```
+
+Inspect the current build:
+
+```bash
+sandnote version
+```
+
 ## Quickstart
 
 Initialize a local store:
@@ -158,6 +184,24 @@ The main remaining work is:
 - harden end-to-end notebook workflows
 - tighten the CLI contract and help/documentation
 - prepare the first preview release boundary
+
+## Preview Scope
+
+The first v0 preview is intended to cover:
+
+- filesystem-backed notebook state
+- canonical `entry`, `thread`, `workspace`, and `topic` commands
+- top-level `resume`
+- persisted REPL session state
+- frontier-based active work selection
+- checkpoint quality enforcement for live threads
+
+The preview is not trying to ship:
+
+- LLM-assisted workflows
+- full PKM/editor features
+- synchronization or multi-user coordination
+- a stable long-term storage schema beyond the current local object model
 
 ## Non-Goals
 
