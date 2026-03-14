@@ -22,6 +22,7 @@ func NewRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Example: joinLines(
+			"  sandnote version",
 			"  sandnote init",
 			"  sandnote workspace create --id ws_auth --name task/auth",
 			"  sandnote entry create --id en_auth --subject \"auth anchor\" --meaning \"resume auth work here\"",
@@ -43,6 +44,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(
 		newInitCommand(opts),
 		newIndexCommand(opts),
+		newVersionCommand(),
 		newResumeCommand(opts),
 		newEntryCommand(opts),
 		newThreadCommand(opts),
