@@ -435,6 +435,36 @@ func TestTopicOrientUpdatesOrientation(t *testing.T) {
 	}
 }
 
+func TestTopicEntriesListsAttachedEntries(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	output := executeCLI(t, root, "topic", "entries", "tp_1", "--json")
+
+	var got []model.Entry
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "en_1" {
+		t.Fatalf("unexpected topic entries: %+v", got)
+	}
+}
+
+func TestTopicThreadsListsAttachedThreads(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	output := executeCLI(t, root, "topic", "threads", "tp_1", "--json")
+
+	var got []threadListItem
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "th_1" || got[0].WorkspaceID != "ws_1" {
+		t.Fatalf("unexpected topic threads: %+v", got)
+	}
+}
+
 func TestTopicPromoteFromThreadAddsAnchorByDefault(t *testing.T) {
 	t.Parallel()
 
