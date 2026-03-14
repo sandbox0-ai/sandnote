@@ -51,6 +51,71 @@ func TestEntryLinkAddsRelatedContextWithoutDuplicates(t *testing.T) {
 	}
 }
 
+func TestEntryAttachAddsThreadAndTopicRelations(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	output := executeCLI(t, root, "entry", "attach", "en_1", "--thread", "th_1", "--topic", "tp_1", "--json")
+
+	var got model.Entry
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if !contains(got.RelatedContext, "th_1") || !contains(got.RelatedContext, "tp_1") {
+		t.Fatalf("unexpected related context after attach: %+v", got)
+	}
+
+	store := fsstore.New(root)
+	thread, err := store.LoadThread("th_1")
+	if err != nil {
+		t.Fatalf("LoadThread() error = %v", err)
+	}
+	if len(thread.SupportingIDs) != 1 || thread.SupportingIDs[0] != "en_1" {
+		t.Fatalf("expected entry attached to thread support context: %+v", thread)
+	}
+
+	topic, err := store.LoadTopic("tp_1")
+	if err != nil {
+		t.Fatalf("LoadTopic() error = %v", err)
+	}
+	if len(topic.EntryIDs) != 1 || topic.EntryIDs[0] != "en_1" {
+		t.Fatalf("expected entry attached to topic: %+v", topic)
+	}
+}
+
+func TestEntryAttachAvoidsDuplicateTargets(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "entry", "attach", "en_1", "--thread", "th_1", "--topic", "tp_1")
+	executeCLI(t, root, "entry", "attach", "en_1", "--thread", "th_1", "--topic", "tp_1")
+
+	store := fsstore.New(root)
+	entry, err := store.LoadEntry("en_1")
+	if err != nil {
+		t.Fatalf("LoadEntry() error = %v", err)
+	}
+	if len(entry.RelatedContext) != 2 {
+		t.Fatalf("expected deduped related context after repeated attach: %+v", entry)
+	}
+
+	thread, err := store.LoadThread("th_1")
+	if err != nil {
+		t.Fatalf("LoadThread() error = %v", err)
+	}
+	if len(thread.SupportingIDs) != 1 {
+		t.Fatalf("expected deduped supporting ids after repeated attach: %+v", thread)
+	}
+
+	topic, err := store.LoadTopic("tp_1")
+	if err != nil {
+		t.Fatalf("LoadTopic() error = %v", err)
+	}
+	if len(topic.EntryIDs) != 1 {
+		t.Fatalf("expected deduped topic entry ids after repeated attach: %+v", topic)
+	}
+}
+
 func TestEntryArchiveMarksEntryArchivedWithoutLosingContent(t *testing.T) {
 	t.Parallel()
 
