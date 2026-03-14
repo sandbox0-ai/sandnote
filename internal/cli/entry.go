@@ -21,10 +21,10 @@ func newEntryCommand(opts *rootOptions) *cobra.Command {
 		newEntryShowCommand(opts),
 		newEntryListCommand(opts),
 		newEntryArchiveCommand(opts),
+		newEntryAttachCommand(opts),
 		newEntryLinkCommand(opts),
 		newEntryReviseCommand(opts),
 	)
-	addNotImplementedSubcommands(cmd, "attach")
 	return cmd
 }
 
@@ -224,6 +224,77 @@ func newEntryArchiveCommand(opts *rootOptions) *cobra.Command {
 			return output(cmd, entryOpts.json, entry, formatEntry(entry))
 		},
 	}
+	cmd.Flags().BoolVar(&entryOpts.json, "json", false, "output JSON")
+	return cmd
+}
+
+func newEntryAttachCommand(opts *rootOptions) *cobra.Command {
+	entryOpts := &entryOptions{}
+	var threadIDs []string
+	var topicIDs []string
+
+	cmd := &cobra.Command{
+		Use:   "attach <id>",
+		Short: "Attach an entry to thread support context and/or topic re-entry surfaces",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(threadIDs) == 0 && len(topicIDs) == 0 {
+				return errors.New("attach requires at least one --thread or --topic target")
+			}
+
+			store, err := requireStore(opts.storeRoot)
+			if err != nil {
+				return err
+			}
+			entry, err := store.LoadEntry(args[0])
+			if err != nil {
+				return err
+			}
+
+			now := nowUTC()
+			for _, threadID := range threadIDs {
+				thread, err := store.LoadThread(threadID)
+				if err != nil {
+					return err
+				}
+				if !contains(thread.SupportingIDs, entry.ID) {
+					thread.SupportingIDs = append(thread.SupportingIDs, entry.ID)
+					thread.UpdatedAt = now
+					if err := store.SaveThread(thread); err != nil {
+						return err
+					}
+				}
+				if !contains(entry.RelatedContext, thread.ID) {
+					entry.RelatedContext = append(entry.RelatedContext, thread.ID)
+				}
+			}
+
+			for _, topicID := range topicIDs {
+				topic, err := store.LoadTopic(topicID)
+				if err != nil {
+					return err
+				}
+				if !contains(topic.EntryIDs, entry.ID) {
+					topic.EntryIDs = append(topic.EntryIDs, entry.ID)
+					topic.UpdatedAt = now
+					if err := store.SaveTopic(topic); err != nil {
+						return err
+					}
+				}
+				if !contains(entry.RelatedContext, topic.ID) {
+					entry.RelatedContext = append(entry.RelatedContext, topic.ID)
+				}
+			}
+
+			entry.UpdatedAt = now
+			if err := store.SaveEntry(entry); err != nil {
+				return err
+			}
+			return output(cmd, entryOpts.json, entry, formatEntry(entry))
+		},
+	}
+	cmd.Flags().StringSliceVar(&threadIDs, "thread", nil, "attach the entry to one or more threads")
+	cmd.Flags().StringSliceVar(&topicIDs, "topic", nil, "attach the entry to one or more topics")
 	cmd.Flags().BoolVar(&entryOpts.json, "json", false, "output JSON")
 	return cmd
 }
