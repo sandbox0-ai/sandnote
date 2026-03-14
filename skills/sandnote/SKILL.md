@@ -130,3 +130,25 @@ That is the minimum for future resumability.
 - Prefer `thread` operations over generic note CRUD.
 - Prefer `--json` when the output needs to be machine-readable.
 - Use the REPL only when a persistent notebook session is genuinely helpful.
+
+## Installation Note
+
+If the `sandnote` binary is missing, prefer telling the user to install it with one of these:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sandbox0-ai/sandnote/main/scripts/install.sh | bash
+```
+
+or:
+
+```powershell
+irm https://raw.githubusercontent.com/sandbox0-ai/sandnote/main/scripts/install.ps1 | iex
+```
+
+or:
+
+```bash
+go install github.com/sandbox0-ai/sandnote/cmd/sandnote@latest
+```
+
+Do not switch to build-from-source instructions unless the user explicitly wants that.

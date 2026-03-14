@@ -83,7 +83,37 @@ Current core flows:
 
 ## Install
 
-For end users, prefer installing a prebuilt binary from GitHub Releases:
+For macOS and Linux, the shortest install path is:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sandbox0-ai/sandnote/main/scripts/install.sh | bash
+```
+
+Install a specific version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sandbox0-ai/sandnote/main/scripts/install.sh | env SANDNOTE_VERSION=v0.1.0 bash
+```
+
+For Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/sandbox0-ai/sandnote/main/scripts/install.ps1 | iex
+```
+
+Install a specific version on Windows:
+
+```powershell
+$env:SANDNOTE_VERSION="v0.1.0"; irm https://raw.githubusercontent.com/sandbox0-ai/sandnote/main/scripts/install.ps1 | iex
+```
+
+If you prefer Go:
+
+```bash
+go install github.com/sandbox0-ai/sandnote/cmd/sandnote@latest
+```
+
+Prebuilt binaries are also published on GitHub Releases:
 
 ```text
 https://github.com/sandbox0-ai/sandnote/releases
@@ -107,8 +137,8 @@ sandnote_v0.1.0_windows_amd64.zip
 Typical end-user flow:
 
 1. Install the skill with `npx skills add`.
-2. Download the matching Sandnote release archive for your platform.
-3. Put the `sandnote` binary on `PATH`.
+2. Install the `sandnote` binary with `curl | bash`, PowerShell, or `go install`.
+3. Confirm `sandnote` is on `PATH`.
 4. Let the agent use Sandnote as its notebook/workspace.
 
 For developers, local build commands are:
