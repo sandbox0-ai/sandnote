@@ -69,3 +69,24 @@ func alignActiveSelectionAfterTransition(store *fsstore.Store, thread model.Thre
 	state.pendingCheckpointContext = ""
 	return saveREPLState(store, state)
 }
+
+func alignActiveSelectionAfterWorkspaceDetach(store *fsstore.Store, workspace model.Workspace, detachedThreadID string) error {
+	nextFocus := workspace.FocusThreadID
+
+	state, err := loadREPLState(store)
+	if err != nil {
+		return err
+	}
+	if state.focusThread != detachedThreadID {
+		return nil
+	}
+
+	if state.currentWorkspace == workspace.ID {
+		state.focusThread = nextFocus
+	} else {
+		state.focusThread = ""
+	}
+	state.inspectionScope = nil
+	state.pendingCheckpointContext = ""
+	return saveREPLState(store, state)
+}
