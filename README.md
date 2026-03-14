@@ -1,12 +1,32 @@
 # sandnote
 
-**A CLI-first notebook engine for agents, backed by the filesystem.**
+**A CLI-first notebook engine for long-running agents, backed by the filesystem.**
 
 Sandnote is a resumability-first notebook for agents.
 
 It is not agent memory. It is the agent's notebook.
 
 Its job is to preserve the continuity of thought so interrupted work can resume without starting over.
+
+For long-running agents, the intended use is:
+
+- install the Sandnote skill from this repository
+- install a Sandnote binary from GitHub Releases
+- let the agent use Sandnote as its notebook/workspace instead of treating a raw local folder as the workspace
+
+## Agent Onboarding
+
+If your agent supports Skills, the simplest onboarding should be:
+
+```bash
+npx skills add sandbox0-ai/sandnote
+```
+
+That installs the repository skill at `skills/sandnote/SKILL.md`, which is written to steer the agent toward:
+
+- using Sandnote as the notebook/workspace for long-running work
+- preferring Sandnote over directly managing raw files and folders
+- using the canonical `thread`-first CLI instead of ad hoc file organization
 
 ## Product Promise
 
@@ -62,6 +82,36 @@ Current core flows:
 - stateful REPL over persisted notebook state
 
 ## Install
+
+For end users, prefer installing a prebuilt binary from GitHub Releases:
+
+```text
+https://github.com/sandbox0-ai/sandnote/releases
+```
+
+Release archives are published as:
+
+```text
+sandnote_<version>_<os>_<arch>.tar.gz
+sandnote_<version>_<os>_<arch>.zip
+```
+
+Examples:
+
+```text
+sandnote_v0.1.0_linux_amd64.tar.gz
+sandnote_v0.1.0_darwin_arm64.tar.gz
+sandnote_v0.1.0_windows_amd64.zip
+```
+
+Typical end-user flow:
+
+1. Install the skill with `npx skills add`.
+2. Download the matching Sandnote release archive for your platform.
+3. Put the `sandnote` binary on `PATH`.
+4. Let the agent use Sandnote as its notebook/workspace.
+
+For developers, local build commands are:
 
 Build a local binary:
 

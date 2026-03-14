@@ -18,7 +18,7 @@ func NewRootCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:           "sandnote",
-		Short:         "CLI-first notebook engine for agents",
+		Short:         "CLI-first notebook engine for long-running agents",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Example: joinLines(

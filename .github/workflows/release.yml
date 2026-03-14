@@ -1,0 +1,110 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Derive build metadata
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            version="manual-${GITHUB_SHA::7}"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Build archive
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          BUILD_DATE: ${{ steps.meta.outputs.build_date }}
+          GIT_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist package
+
+          binary_name="sandnote"
+          if [[ "${GOOS}" == "windows" ]]; then
+            binary_name="sandnote.exe"
+          fi
+
+          go build \
+            -ldflags "-s -w -X github.com/sandbox0-ai/sandnote/internal/cli.Version=${VERSION} -X github.com/sandbox0-ai/sandnote/internal/cli.GitCommit=${GIT_COMMIT} -X github.com/sandbox0-ai/sandnote/internal/cli.BuildDate=${BUILD_DATE}" \
+            -o "dist/${binary_name}" \
+            ./cmd/sandnote
+
+          archive_base="sandnote_${VERSION}_${GOOS}_${GOARCH}"
+          cp README.md LICENSE "dist/${binary_name}" package/
+
+          if [[ "${GOOS}" == "windows" ]]; then
+            (cd package && zip -q "../dist/${archive_base}.zip" README.md LICENSE "${binary_name}")
+          else
+            tar -C package -czf "dist/${archive_base}.tar.gz" README.md LICENSE "${binary_name}"
+          fi
+
+          rm -rf package/*
+          rm -f dist/${binary_name}
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandnote-${{ steps.meta.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: sandnote-${{ github.ref_name }}-*
+          merge-multiple: true
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

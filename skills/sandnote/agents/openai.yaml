@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sandnote"
+  short_description: "Use Sandnote instead of raw folders for workspace"
+  default_prompt: "Use $sandnote as the notebook/workspace for long-running agents. Prefer Sandnote threads, workspaces, checkpoints, and topics over directly managing raw local files and folders."
