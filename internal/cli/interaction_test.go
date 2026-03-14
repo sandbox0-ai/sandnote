@@ -117,6 +117,128 @@ func TestWorkspaceFocusAttachesThread(t *testing.T) {
 	}
 }
 
+func TestWorkspaceAttachAssignsMembershipWithoutChangingFocus(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	store := fsstore.New(root)
+	now := nowUTC()
+	free := model.Thread{
+		ID:        "th_free",
+		Question:  "What should get attached next?",
+		Vitality:  model.VitalityLive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := store.SaveThread(free); err != nil {
+		t.Fatalf("SaveThread() error = %v", err)
+	}
+
+	output := executeCLI(t, root, "workspace", "attach", "ws_1", "th_free", "--json")
+
+	var got model.Workspace
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got.FocusThreadID != "" || !contains(got.ThreadIDs, "th_free") {
+		t.Fatalf("unexpected workspace after attach: %+v", got)
+	}
+
+	thread, err := store.LoadThread("th_free")
+	if err != nil {
+		t.Fatalf("LoadThread() error = %v", err)
+	}
+	if thread.WorkspaceID != "ws_1" {
+		t.Fatalf("expected thread attached to workspace: %+v", thread)
+	}
+}
+
+func TestWorkspaceDetachClearsMembershipAndFocusedSessionWithoutReplacement(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "workspace", "focus", "ws_1", "th_1")
+	executeCLI(t, root, "workspace", "use", "ws_1")
+	executeCLI(t, root, "workspace", "detach", "ws_1", "th_1")
+
+	store := fsstore.New(root)
+	workspace, err := store.LoadWorkspace("ws_1")
+	if err != nil {
+		t.Fatalf("LoadWorkspace() error = %v", err)
+	}
+	if workspace.FocusThreadID != "" || contains(workspace.ThreadIDs, "th_1") {
+		t.Fatalf("expected workspace membership cleared after detach: %+v", workspace)
+	}
+
+	thread, err := store.LoadThread("th_1")
+	if err != nil {
+		t.Fatalf("LoadThread() error = %v", err)
+	}
+	if thread.WorkspaceID != "" {
+		t.Fatalf("expected thread workspace cleared after detach: %+v", thread)
+	}
+
+	session, err := store.LoadREPLSession()
+	if err != nil {
+		t.Fatalf("LoadREPLSession() error = %v", err)
+	}
+	if session.CurrentWorkspace != "ws_1" || session.FocusThread != "" {
+		t.Fatalf("unexpected session after detach: %+v", session)
+	}
+}
+
+func TestWorkspaceDetachRetargetsFocusAndSessionToReplacement(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	store := fsstore.New(root)
+	now := nowUTC()
+	other := model.Thread{
+		ID:            "th_2",
+		Question:      "What should replace the detached focus?",
+		CurrentBelief: "keep a second live thread available",
+		OpenEdge:      "pick the next active thread",
+		ReentryAnchor: "en_1",
+		Vitality:      model.VitalityLive,
+		WorkspaceID:   "ws_1",
+		SupportingIDs: []string{"en_1"},
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := store.SaveThread(other); err != nil {
+		t.Fatalf("SaveThread() error = %v", err)
+	}
+	workspace, err := store.LoadWorkspace("ws_1")
+	if err != nil {
+		t.Fatalf("LoadWorkspace() error = %v", err)
+	}
+	workspace.ThreadIDs = []string{"th_1", "th_2"}
+	workspace.UpdatedAt = nowUTC()
+	if err := store.SaveWorkspace(workspace); err != nil {
+		t.Fatalf("SaveWorkspace() error = %v", err)
+	}
+
+	executeCLI(t, root, "workspace", "focus", "ws_1", "th_1")
+	executeCLI(t, root, "workspace", "use", "ws_1")
+	executeCLI(t, root, "workspace", "detach", "ws_1", "th_1")
+
+	workspace, err = store.LoadWorkspace("ws_1")
+	if err != nil {
+		t.Fatalf("LoadWorkspace() error = %v", err)
+	}
+	if workspace.FocusThreadID != "th_2" || contains(workspace.ThreadIDs, "th_1") {
+		t.Fatalf("expected workspace focus retargeted after detach: %+v", workspace)
+	}
+
+	session, err := store.LoadREPLSession()
+	if err != nil {
+		t.Fatalf("LoadREPLSession() error = %v", err)
+	}
+	if session.CurrentWorkspace != "ws_1" || session.FocusThread != "th_2" {
+		t.Fatalf("unexpected session after detach retarget: %+v", session)
+	}
+}
+
 func TestThreadTransitionClearsFocusWhenNoLiveReplacementExists(t *testing.T) {
 	t.Parallel()
 

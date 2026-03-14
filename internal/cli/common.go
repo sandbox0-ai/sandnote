@@ -141,6 +141,17 @@ func contains(values []string, want string) bool {
 	return false
 }
 
+func withoutValue(values []string, drop string) []string {
+	filtered := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == drop {
+			continue
+		}
+		filtered = append(filtered, value)
+	}
+	return filtered
+}
+
 func fmtInt(value int) string {
 	return strconv.Itoa(value)
 }
