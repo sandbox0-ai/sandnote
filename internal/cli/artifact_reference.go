@@ -13,11 +13,10 @@ import (
 
 var errArtifactFound = errors.New("artifact candidate found")
 
-func prepareArtifactReference(storeRoot string, artifact *model.Artifact, sourceData []byte, info os.FileInfo) {
-	workspaceRoot := filepath.Clean(filepath.Dir(storeRoot))
+func prepareArtifactReference(rootPath string, artifact *model.Artifact, sourceData []byte, info os.FileInfo) {
 	searchRoots := uniquePaths(
 		filepath.Dir(artifact.SourceRef),
-		workspaceRoot,
+		rootPath,
 	)
 
 	artifact.ContentDigest = digestBytes(sourceData)
@@ -29,12 +28,12 @@ func prepareArtifactReference(storeRoot string, artifact *model.Artifact, source
 	}
 }
 
-func resolveArtifactReference(storeRoot string, artifact model.Artifact) (model.Artifact, bool, error) {
+func resolveArtifactReference(rootPath string, artifact model.Artifact) (model.Artifact, bool, error) {
 	if artifact.IngestMode != model.ArtifactReference {
 		return artifact, false, nil
 	}
 
-	currentPath, err := findArtifactPath(storeRoot, artifact)
+	currentPath, err := findArtifactPath(rootPath, artifact)
 	if err != nil {
 		return artifact, false, err
 	}
@@ -42,7 +41,7 @@ func resolveArtifactReference(storeRoot string, artifact model.Artifact) (model.
 		return artifact, false, nil
 	}
 
-	updated, err := refreshReferenceArtifact(storeRoot, artifact, currentPath)
+	updated, err := refreshReferenceArtifact(rootPath, artifact, currentPath)
 	if err != nil {
 		return artifact, false, err
 	}
@@ -50,7 +49,7 @@ func resolveArtifactReference(storeRoot string, artifact model.Artifact) (model.
 	return updated, artifact.SourceRef != updated.SourceRef || artifact.ContentDigest != updated.ContentDigest, nil
 }
 
-func refreshReferenceArtifact(storeRoot string, artifact model.Artifact, path string) (model.Artifact, error) {
+func refreshReferenceArtifact(rootPath string, artifact model.Artifact, path string) (model.Artifact, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return artifact, err
@@ -62,16 +61,16 @@ func refreshReferenceArtifact(storeRoot string, artifact model.Artifact, path st
 
 	artifact.SourceRef = path
 	artifact.UpdatedAt = nowUTC()
-	prepareArtifactReference(storeRoot, &artifact, data, info)
+	prepareArtifactReference(rootPath, &artifact, data, info)
 	return artifact, nil
 }
 
-func findArtifactPath(storeRoot string, artifact model.Artifact) (string, error) {
+func findArtifactPath(rootPath string, artifact model.Artifact) (string, error) {
 	if pathMatchesArtifactReference(artifact, artifact.SourceRef) {
 		return artifact.SourceRef, nil
 	}
 
-	for _, root := range searchRootsForArtifact(storeRoot, artifact) {
+	for _, root := range searchRootsForArtifact(rootPath, artifact) {
 		found, err := scanArtifactRoot(root, artifact)
 		if err != nil {
 			return "", err
@@ -84,12 +83,12 @@ func findArtifactPath(storeRoot string, artifact model.Artifact) (string, error)
 	return "", nil
 }
 
-func searchRootsForArtifact(storeRoot string, artifact model.Artifact) []string {
+func searchRootsForArtifact(rootPath string, artifact model.Artifact) []string {
 	roots := make([]string, 0, 4)
 	if artifact.Locator != nil {
 		roots = append(roots, artifact.Locator.SearchRoots...)
 	}
-	roots = append(roots, filepath.Dir(artifact.SourceRef), filepath.Clean(filepath.Dir(storeRoot)))
+	roots = append(roots, filepath.Dir(artifact.SourceRef), filepath.Clean(rootPath))
 	return uniquePaths(roots...)
 }
 

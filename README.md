@@ -173,7 +173,10 @@ Initialize a local store:
 
 ```bash
 sandnote init
+sandnote init --root-path /path/to/repo
 ```
+
+`init` persists the notebook root path. Later commands automatically discover the nearest initialized `.sandnote` from the current directory upward, so running from subdirectories keeps using the same notebook.
 
 Create a workspace, an entry, and a thread:
 
