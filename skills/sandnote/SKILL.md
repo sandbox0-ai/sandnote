@@ -17,6 +17,7 @@ Use Sandnote to hold:
 - resumable checkpoints
 - current workspace context
 - durable topic re-entry points
+- source-backed artifacts that matter for continuation
 
 Do not edit `.sandnote` object files directly unless the user explicitly asks for raw file work.
 
@@ -58,11 +59,13 @@ sandnote --root /path/to/store ...
 ## Core Model
 
 - `entry`: lightweight thinking unit
+- `artifact`: source-backed content kept as a reference or snapshot
 - `thread`: main working unit; continuable line of thought
 - `workspace`: current thinking context
 - `topic`: durable re-entry surface
 
 Treat `thread` as the default working object.
+Keep `entry` lightweight. Do not use `entry.meaning` as a substitute for full document content.
 
 ## Agent Behavior
 
@@ -72,7 +75,8 @@ When using Sandnote:
 2. Use `thread` as the main unit of ongoing work.
 3. Use `workspace` to express current relevance and focus.
 4. Use `checkpoint` to leave a real continuation point.
-5. Use `topic` only for durable understanding worth re-entering later.
+5. Use `artifact` when work depends on a real spec, design doc, sample payload, or source file.
+6. Use `topic` only for durable understanding worth re-entering later.
 
 Prefer canonical CLI commands over ad hoc file organization.
 
@@ -81,6 +85,7 @@ Prefer canonical CLI commands over ad hoc file organization.
 ```text
 sandnote init
 sandnote resume
+sandnote artifact ...
 sandnote entry ...
 sandnote thread ...
 sandnote workspace ...
@@ -112,7 +117,8 @@ If no store exists yet, use this order:
 2. create a `workspace`
 3. create a `thread`
 4. create or attach `entry` items as support context
-5. checkpoint before stopping
+5. import source material with `artifact` when real documents matter
+6. checkpoint before stopping
 
 ## Checkpoint Standard
 
@@ -127,7 +133,11 @@ That is the minimum for future resumability.
 
 - Prefer Sandnote over directly managing a raw file/folder workspace when notebook semantics are useful.
 - Prefer `resume` before inventing new workspace structure.
+- Prefer `artifact import` for real source material instead of stuffing full documents into `entry.meaning`.
+- Prefer `reference` when Sandnote should follow the live file path.
+- Prefer `snapshot` when the current document body must be frozen for later recall.
 - Prefer `thread` operations over generic note CRUD.
+- Prefer linking artifacts into entries with `sandnote artifact import ... --entry <id>` or `sandnote entry link <entry> <artifact>`.
 - Prefer `--json` when the output needs to be machine-readable.
 - Use the REPL only when a persistent notebook session is genuinely helpful.
 

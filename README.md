@@ -26,6 +26,7 @@ That installs the repository skill at `skills/sandnote/SKILL.md`, which is writt
 
 - using Sandnote as the notebook/workspace for long-running work
 - preferring Sandnote over directly managing raw files and folders
+- importing real source material as `artifact` objects when document-backed resumability matters
 - using the canonical `thread`-first CLI instead of ad hoc file organization
 
 ## Product Promise
@@ -39,6 +40,7 @@ For v0, the more operational version is:
 ## Core Model
 
 - `entry`: a lightweight thinking unit
+- `artifact`: source-backed content kept as a reference or snapshot
 - `thread`: a continuable line of thought
 - `workspace`: the current thinking context
 - `topic`: a durable re-entry surface
@@ -46,9 +48,12 @@ For v0, the more operational version is:
 These layers stay distinct:
 
 - `entry` captures local thought
+- `artifact` carries source material without overloading entries
 - `thread` is the main working unit
 - `workspace` explains current relevance
 - `topic` preserves understanding worth re-entering later
+
+Sandnote is not trying to turn `entry` into a document body. If a thread depends on a real spec, design doc, sample payload, or source file, import it as an `artifact` and link it into the working context.
 
 ## Why Filesystem-Backed
 
@@ -66,6 +71,7 @@ This keeps the notebook durable and operationally simple while still allowing hi
 Canonical CLI:
 
 ```text
+sandnote artifact ...
 sandnote entry ...
 sandnote thread ...
 sandnote workspace ...
@@ -75,6 +81,7 @@ sandnote repl
 
 Current core flows:
 
+- document-backed resumability through `artifact` reference and snapshot modes
 - thread-first resume and frontier selection
 - checkpoint and vitality transitions
 - workspace focus and active selection persistence
@@ -185,6 +192,14 @@ sandnote workspace create --id ws_auth --name task/auth
 sandnote entry create --id en_auth --subject "auth anchor" --meaning "resume auth work here"
 sandnote thread create --id th_auth --question "How should auth work continue?" --workspace ws_auth
 ```
+
+Import any real source document the work depends on:
+
+```bash
+sandnote artifact import ./auth-spec.md --id art_auth_spec --mode reference --entry en_auth
+```
+
+Use `reference` when Sandnote should follow the live file, and `snapshot` when the current body must be preserved exactly.
 
 Attach the entry, focus the workspace, and resume:
 
