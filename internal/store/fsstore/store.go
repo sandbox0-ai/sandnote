@@ -21,7 +21,8 @@ type Store struct {
 }
 
 type Marker struct {
-	Version int `json:"version"`
+	Version  int    `json:"version"`
+	RootPath string `json:"root_path,omitempty"`
 }
 
 type REPLSession struct {
@@ -86,9 +87,28 @@ func (s *Store) Root() string {
 	return s.root
 }
 
-func (s *Store) Init() error {
+func (s *Store) Init(rootPath ...string) error {
 	if s.root == "" {
 		return errors.New("store root is required")
+	}
+	resolvedRootPath := filepath.Dir(s.root)
+	if len(rootPath) > 0 && rootPath[0] != "" {
+		resolvedRootPath = rootPath[0]
+	}
+	resolvedRootPath, err := filepath.Abs(resolvedRootPath)
+	if err != nil {
+		return fmt.Errorf("resolve root path: %w", err)
+	}
+	resolvedRootPath = filepath.Clean(resolvedRootPath)
+	info, err := os.Stat(resolvedRootPath)
+	if err != nil {
+		return fmt.Errorf("stat root path: %w", err)
+	}
+	if !info.IsDir() {
+		return errors.New("root path must be a directory")
+	}
+	if s.Initialized() {
+		return fmt.Errorf("sandnote store is already initialized at %s", s.root)
 	}
 	if err := os.MkdirAll(s.root, 0o755); err != nil {
 		return fmt.Errorf("create store root: %w", err)
@@ -98,12 +118,77 @@ func (s *Store) Init() error {
 			return fmt.Errorf("create %s directory: %w", dir, err)
 		}
 	}
-	return writeJSON(filepath.Join(s.root, markerFile), Marker{Version: 1})
+	return writeJSON(filepath.Join(s.root, markerFile), Marker{
+		Version:  1,
+		RootPath: resolvedRootPath,
+	})
 }
 
 func (s *Store) Initialized() bool {
-	info, err := os.Stat(filepath.Join(s.root, markerFile))
+	return IsInitializedRoot(s.root)
+}
+
+func IsInitializedRoot(root string) bool {
+	info, err := os.Stat(filepath.Join(root, markerFile))
 	return err == nil && !info.IsDir()
+}
+
+func DiscoverRoot(start string) (string, error) {
+	if start == "" {
+		return "", errors.New("start path is required")
+	}
+	current, err := filepath.Abs(start)
+	if err != nil {
+		return "", fmt.Errorf("resolve start path: %w", err)
+	}
+	current = filepath.Clean(current)
+
+	info, err := os.Stat(current)
+	if err == nil && !info.IsDir() {
+		current = filepath.Dir(current)
+	} else if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+
+	for {
+		if IsInitializedRoot(current) {
+			return current, nil
+		}
+
+		candidate := filepath.Join(current, ".sandnote")
+		if IsInitializedRoot(candidate) {
+			return candidate, nil
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", nil
+		}
+		current = parent
+	}
+}
+
+func (s *Store) LoadMarker() (Marker, error) {
+	if !s.Initialized() {
+		return Marker{}, errors.New("store is not initialized")
+	}
+
+	var marker Marker
+	if err := s.loadFile(filepath.Join(s.root, markerFile), &marker); err != nil {
+		return Marker{}, err
+	}
+	if marker.RootPath == "" {
+		marker.RootPath = filepath.Clean(filepath.Dir(s.root))
+	}
+	return marker, nil
+}
+
+func (s *Store) RootPath() (string, error) {
+	marker, err := s.LoadMarker()
+	if err != nil {
+		return "", err
+	}
+	return marker.RootPath, nil
 }
 
 func (s *Store) SaveREPLSession(session REPLSession) error {

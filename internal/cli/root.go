@@ -39,8 +39,8 @@ func NewRootCommand() *cobra.Command {
 	cmd.PersistentFlags().StringVar(
 		&opts.storeRoot,
 		"root",
-		defaultStoreRoot(),
-		"filesystem root for sandnote state",
+		"",
+		"filesystem root for sandnote state; defaults to the nearest initialized .sandnote",
 	)
 
 	cmd.AddCommand(
@@ -59,31 +59,105 @@ func NewRootCommand() *cobra.Command {
 	return cmd
 }
 
-func defaultStoreRoot() string {
+func resolvePath(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(abs), nil
+}
+
+func currentWorkingDirectory() (string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
-		return ".sandnote"
+		return "", err
 	}
-	return filepath.Join(wd, ".sandnote")
+	return filepath.Clean(wd), nil
+}
+
+func resolveCommandStoreRoot(root string) (string, error) {
+	if root != "" {
+		return resolvePath(root)
+	}
+
+	wd, err := currentWorkingDirectory()
+	if err != nil {
+		return "", err
+	}
+	discovered, err := fsstore.DiscoverRoot(wd)
+	if err != nil {
+		return "", err
+	}
+	if discovered != "" {
+		return discovered, nil
+	}
+	return filepath.Join(wd, ".sandnote"), nil
+}
+
+func resolveInitRootPath(rootPath, storeRoot string) (string, error) {
+	if rootPath != "" {
+		return resolvePath(rootPath)
+	}
+	if storeRoot != "" {
+		resolvedStoreRoot, err := resolvePath(storeRoot)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Dir(resolvedStoreRoot), nil
+	}
+	return currentWorkingDirectory()
+}
+
+func resolveInitStoreRoot(storeRoot, rootPath string) (string, error) {
+	if storeRoot != "" {
+		return resolvePath(storeRoot)
+	}
+	return filepath.Join(rootPath, ".sandnote"), nil
 }
 
 func newInitCommand(opts *rootOptions) *cobra.Command {
-	return &cobra.Command{
+	var rootPath string
+
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a filesystem-backed sandnote store",
 		Example: joinLines(
 			"  sandnote init",
+			"  sandnote init --root-path /path/to/repo",
 			"  sandnote --root /tmp/demo/.sandnote init",
 		),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store := fsstore.New(opts.storeRoot)
-			if err := store.Init(); err != nil {
+			resolvedRootPath, err := resolveInitRootPath(rootPath, opts.storeRoot)
+			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "initialized sandnote store at %s\n", store.Root())
+			resolvedStoreRoot, err := resolveInitStoreRoot(opts.storeRoot, resolvedRootPath)
+			if err != nil {
+				return err
+			}
+
+			existingRoot, err := fsstore.DiscoverRoot(resolvedRootPath)
+			if err != nil {
+				return err
+			}
+			if existingRoot != "" && existingRoot != resolvedStoreRoot {
+				return fmt.Errorf("sandnote store is already initialized at %s", existingRoot)
+			}
+
+			store := fsstore.New(resolvedStoreRoot)
+			if err := store.Init(resolvedRootPath); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "initialized sandnote store at %s for root path %s\n", store.Root(), resolvedRootPath)
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&rootPath, "root-path", "", "root path for notebook-relative discovery and artifact resolution")
+	return cmd
 }
 
 func addNotImplementedSubcommands(parent *cobra.Command, names ...string) {

@@ -53,6 +53,10 @@ func newArtifactImportCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			rootPath, err := store.RootPath()
+			if err != nil {
+				return err
+			}
 
 			entries := make([]model.Entry, 0, len(entryIDs))
 			for _, entryID := range entryIDs {
@@ -97,7 +101,7 @@ func newArtifactImportCommand(opts *rootOptions) *cobra.Command {
 				CreatedAt:  nowUTC(),
 				UpdatedAt:  nowUTC(),
 			}
-			prepareArtifactReference(opts.storeRoot, &artifact, data, info)
+			prepareArtifactReference(rootPath, &artifact, data, info)
 			if artifact.IngestMode == model.ArtifactSnapshot {
 				artifact.Body = string(data)
 			}
@@ -140,11 +144,15 @@ func newArtifactShowCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			rootPath, err := store.RootPath()
+			if err != nil {
+				return err
+			}
 			artifact, err := store.LoadArtifact(args[0])
 			if err != nil {
 				return err
 			}
-			artifact, changed, err := resolveArtifactReference(opts.storeRoot, artifact)
+			artifact, changed, err := resolveArtifactReference(rootPath, artifact)
 			if err != nil {
 				return err
 			}
@@ -170,6 +178,10 @@ func newArtifactListCommand(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			rootPath, err := store.RootPath()
+			if err != nil {
+				return err
+			}
 			artifacts, err := store.ListArtifacts()
 			if err != nil {
 				return err
@@ -177,7 +189,7 @@ func newArtifactListCommand(opts *rootOptions) *cobra.Command {
 
 			items := make([]artifactListItem, 0, len(artifacts))
 			for _, artifact := range artifacts {
-				resolved, changed, err := resolveArtifactReference(opts.storeRoot, artifact)
+				resolved, changed, err := resolveArtifactReference(rootPath, artifact)
 				if err != nil {
 					return err
 				}

@@ -615,9 +615,13 @@ func newThreadTransitionCommand(opts *rootOptions) *cobra.Command {
 }
 
 func requireStore(root string) (*fsstore.Store, error) {
-	store := fsstore.New(root)
+	resolvedRoot, err := resolveCommandStoreRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	store := fsstore.New(resolvedRoot)
 	if !store.Initialized() {
-		return nil, fmt.Errorf("sandnote store is not initialized at %s", root)
+		return nil, fmt.Errorf("sandnote store is not initialized at %s", resolvedRoot)
 	}
 	return store, nil
 }
