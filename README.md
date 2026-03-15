@@ -71,6 +71,7 @@ This keeps the notebook durable and operationally simple while still allowing hi
 Canonical CLI:
 
 ```text
+sandnote overview
 sandnote artifact ...
 sandnote entry ...
 sandnote thread ...
@@ -81,6 +82,7 @@ sandnote repl
 
 Current core flows:
 
+- agent-oriented notebook overview through `sandnote overview`, with `--json` reserved for stable parsing
 - document-backed resumability through `artifact` reference and snapshot modes
 - thread-first resume and frontier selection
 - checkpoint and vitality transitions
@@ -184,6 +186,14 @@ sandnote init --root-path /path/to/repo
 ```
 
 `init` persists the notebook root path. Later commands automatically discover the nearest initialized `.sandnote` from the current directory upward, so running from subdirectories keeps using the same notebook.
+
+Inspect the notebook-level state before resuming:
+
+```bash
+sandnote overview
+```
+
+Use `--json` only when a caller needs the full machine-readable contract.
 
 Create a workspace, an entry, and a thread:
 

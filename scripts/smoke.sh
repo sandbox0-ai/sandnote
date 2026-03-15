@@ -7,7 +7,7 @@ tmp_root="$(mktemp -d)"
 trap 'rm -rf "$tmp_root"' EXIT
 
 bin="$tmp_root/sandnote"
-store_root="$tmp_root/demo/.sandnote"
+store_root="$tmp_root/.sandnote"
 
 cd "$repo_root"
 
@@ -36,5 +36,7 @@ go build -o "$bin" ./cmd/sandnote
 "$bin" --root "$store_root" thread transition th_auth --to settled --json >/dev/null
 "$bin" --root "$store_root" topic entries tp_auth --json >/dev/null
 "$bin" --root "$store_root" version >/dev/null
+
+"$bin" --root "$store_root" overview
 
 echo "smoke ok"

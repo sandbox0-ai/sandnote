@@ -24,6 +24,7 @@ func NewRootCommand() *cobra.Command {
 		Example: joinLines(
 			"  sandnote version",
 			"  sandnote init",
+			"  sandnote overview",
 			"  sandnote artifact import ./spec.md --id art_spec --mode reference",
 			"  sandnote workspace create --id ws_auth --name task/auth",
 			"  sandnote entry create --id en_auth --subject \"auth anchor\" --meaning \"resume auth work here\"",
@@ -47,6 +48,7 @@ func NewRootCommand() *cobra.Command {
 		newInitCommand(opts),
 		newIndexCommand(opts),
 		newVersionCommand(),
+		newOverviewCommand(opts),
 		newResumeCommand(opts),
 		newArtifactCommand(opts),
 		newEntryCommand(opts),
