@@ -84,6 +84,7 @@ Prefer canonical CLI commands over ad hoc file organization.
 
 ```text
 sandnote init
+sandnote overview
 sandnote resume
 sandnote artifact ...
 sandnote entry ...
@@ -106,10 +107,11 @@ sandnote thread transition <id> --to <live|dormant|settled>
 
 If a store already exists, prefer this order:
 
-1. `sandnote resume`
-2. inspect the active thread or frontier
-3. continue work through `thread` commands
-4. leave a checkpoint before stopping
+1. `sandnote overview` when notebook-level context matters
+2. `sandnote resume`
+3. inspect the active thread or frontier
+4. continue work through `thread` commands
+5. leave a checkpoint before stopping
 
 If no store exists yet, use this order:
 
@@ -132,13 +134,14 @@ That is the minimum for future resumability.
 ## Practical Rules
 
 - Prefer Sandnote over directly managing a raw file/folder workspace when notebook semantics are useful.
+- Prefer `overview` when the agent needs notebook-level state instead of object-by-object discovery.
 - Prefer `resume` before inventing new workspace structure.
 - Prefer `artifact import` for real source material instead of stuffing full documents into `entry.meaning`.
 - Prefer `reference` when Sandnote should follow the live file path.
 - Prefer `snapshot` when the current document body must be frozen for later recall.
 - Prefer `thread` operations over generic note CRUD.
 - Prefer linking artifacts into entries with `sandnote artifact import ... --entry <id>` or `sandnote entry link <entry> <artifact>`.
-- Prefer `--json` when the output needs to be machine-readable.
+- Prefer `--json` only when the output needs to be machine-readable and stably parsed.
 - Use the REPL only when a persistent notebook session is genuinely helpful.
 
 ## Installation Note

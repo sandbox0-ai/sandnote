@@ -47,6 +47,137 @@ func TestArtifactImportReferenceStoresMetadataAndLinksEntry(t *testing.T) {
 	}
 }
 
+func TestOverviewJSONShowsAgentStateAndArtifactRelations(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	sourcePath := filepath.Join(t.TempDir(), "diagd-spec.md")
+	if err := os.WriteFile(sourcePath, []byte("# diagd\ntrusted capability broker\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	executeCLI(t, root, "artifact", "import", sourcePath, "--id", "art_diagd", "--entry", "en_1")
+
+	store := fsstore.New(root)
+	workspace, err := store.LoadWorkspace("ws_1")
+	if err != nil {
+		t.Fatalf("LoadWorkspace() error = %v", err)
+	}
+	workspace.FocusThreadID = "th_1"
+	workspace.UpdatedAt = nowUTC()
+	if err := store.SaveWorkspace(workspace); err != nil {
+		t.Fatalf("SaveWorkspace() error = %v", err)
+	}
+	if err := store.SaveREPLSession(fsstore.REPLSession{
+		CurrentWorkspace: "ws_1",
+		FocusThread:      "th_1",
+	}); err != nil {
+		t.Fatalf("SaveREPLSession() error = %v", err)
+	}
+
+	output := executeCLI(t, root, "overview", "--json")
+
+	var got overviewView
+	if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got.Active.WorkspaceID != "ws_1" || got.Active.FocusThreadID != "th_1" {
+		t.Fatalf("unexpected active view: %+v", got.Active)
+	}
+	if got.Resume.Status != "ready" || got.Resume.NextThreadID != "th_1" {
+		t.Fatalf("unexpected resume view: %+v", got.Resume)
+	}
+	if got.Counts.Workspaces != 1 || got.Counts.Threads != 1 || got.Counts.LiveThreads != 1 || got.Counts.Artifacts != 1 {
+		t.Fatalf("unexpected overview counts: %+v", got.Counts)
+	}
+	if len(got.Frontier) == 0 || got.Frontier[0].ID != "th_1" {
+		t.Fatalf("expected th_1 at frontier head: %+v", got.Frontier)
+	}
+
+	threadFound := false
+	for _, thread := range got.Threads {
+		if thread.ID != "th_1" {
+			continue
+		}
+		threadFound = true
+		if !thread.Focused || !contains(thread.ArtifactIDs, "art_diagd") {
+			t.Fatalf("expected focused thread linked to artifact: %+v", thread)
+		}
+	}
+	if !threadFound {
+		t.Fatalf("expected th_1 in overview threads: %+v", got.Threads)
+	}
+
+	entryFound := false
+	for _, entry := range got.Entries {
+		if entry.ID != "en_1" {
+			continue
+		}
+		entryFound = true
+		if !contains(entry.ThreadIDs, "th_1") || !contains(entry.ArtifactIDs, "art_diagd") {
+			t.Fatalf("expected en_1 linked to thread and artifact: %+v", entry)
+		}
+	}
+	if !entryFound {
+		t.Fatalf("expected en_1 in overview entries: %+v", got.Entries)
+	}
+
+	artifactFound := false
+	for _, artifact := range got.Artifacts {
+		if artifact.ID != "art_diagd" {
+			continue
+		}
+		artifactFound = true
+		if !contains(artifact.RelatedEntryIDs, "en_1") || !contains(artifact.RelatedThreadIDs, "th_1") || !contains(artifact.ActiveThreadIDs, "th_1") {
+			t.Fatalf("expected artifact relation graph in overview: %+v", artifact)
+		}
+	}
+	if !artifactFound {
+		t.Fatalf("expected art_diagd in overview artifacts: %+v", got.Artifacts)
+	}
+}
+
+func TestOverviewShowsNoLiveThreadsExplicitly(t *testing.T) {
+	t.Parallel()
+
+	root := seedInteractionStore(t)
+	executeCLI(t, root, "workspace", "focus", "ws_1", "th_1")
+	executeCLI(t, root, "workspace", "use", "ws_1")
+	executeCLI(t, root, "thread", "transition", "th_1", "--to", "settled")
+
+	jsonOutput := executeCLI(t, root, "overview", "--json")
+	var got overviewView
+	if err := json.Unmarshal(jsonOutput.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if got.Resume.Status != "no_live_threads" || got.Resume.NextThreadID != "" {
+		t.Fatalf("unexpected resume view after settle: %+v", got.Resume)
+	}
+	if got.Active.WorkspaceID != "ws_1" || got.Active.FocusThreadID != "" {
+		t.Fatalf("unexpected active view after settle: %+v", got.Active)
+	}
+
+	text := executeCLI(t, root, "overview").String()
+	for _, want := range []string{
+		"active workspace: ws_1",
+		"focus thread: none",
+		"resume status: no_live_threads",
+		"workspaces:",
+		"- ws_1 task/auth active threads=1",
+		"frontier:",
+		"- none",
+		"threads:",
+		"- th_1 settled workspace=ws_1 topics=tp_1 entries=en_1 anchor=en_1 How should auth threads resume?",
+		"entries:",
+		"- en_1 anchor threads=th_1 topics=tp_1",
+		"topics:",
+		"- tp_1 auth threads=1 entries=1",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("overview output missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestArtifactImportSnapshotStoresBody(t *testing.T) {
 	t.Parallel()
 
